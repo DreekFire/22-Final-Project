@@ -18,9 +18,9 @@ struct motor_pin_config {
 };
 
 struct motor_pin_config motor_cfg[3] = {
-  { 0,  1,  2,  3,  4},
-  { 5,  6,  7,  8,  9},
-  {10, 11, 12, 13, 14},
+  {25, 4, 26, 15, 32},
+  {17, 16, 21, 27, 33},
+  {18, 5, 19, 13, 12},
 };
 
 struct motor {
@@ -36,36 +36,43 @@ struct motor motors[3] = {
 };
 
 void setup() {
-    Serial.begin(115200);
-    Wire.begin();
-    delay(2000);
+  Serial.begin(115200);
+  Wire.begin();
+  delay(2000);
 
-    if (!mpu.setup(0x68)) {  // change to your own address
-        while (1) {
-            Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
-            delay(5000);
-        }
-    }
+  if (!mpu.setup(0x68)) {  // change to your own address
+      while (1) {
+          Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
+          delay(5000);
+      }
+  }
 
-    // calibrate anytime you want to
-    Serial.println("Accel Gyro calibration will start in 5sec.");
-    Serial.println("Please leave the device still on the flat plane.");
-    mpu.verbose(true);
-    delay(5000);
-    mpu.calibrateAccelGyro();
+  // calibrate anytime you want to
+  Serial.println("Accel Gyro calibration will start in 5sec.");
+  Serial.println("Please leave the device still on the flat plane.");
+  mpu.verbose(true);
+  delay(5000);
+  mpu.calibrateAccelGyro();
 
-    /*Serial.println("Mag calibration will start in 5sec.");
-    Serial.println("Please Wave device in a figure eight until done.");
-    delay(5000);
-    mpu.calibrateMag();*/
+  /*Serial.println("Mag calibration will start in 5sec.");
+  Serial.println("Please Wave device in a figure eight until done.");
+  delay(5000);
+  mpu.calibrateMag();*/
 
-    print_calibration();
-    mpu.verbose(false);
-    
-    for (int i = 0; i < 3; i++) {
-      encs[i].attachFullQuad(motor_cfg[i].DT, motor_cfg[i].CLK);
-      encs[i].setCount(0);
-    }
+  print_calibration();
+  mpu.verbose(false);
+  
+  for (int i = 0; i < 3; i++) {
+    pinMode(motor_cfg[i].IN_1, OUTPUT);
+    pinMode(motor_cfg[i].IN_2, OUTPUT);
+    pinMode(motor_cfg[i].PWM, OUTPUT);
+    pinMode(motor_cfg[i].DT, INPUT);
+    pinMode(motor_cfg[i].CLK, INPUT);
+    ledcAttachPin(motor_cfg[i].PWM, i);
+    ledcSetup(i, 1000, 8);
+    encs[i].attachFullQuad(motor_cfg[i].DT, motor_cfg[i].CLK);
+    encs[i].setCount(0);
+  }
 }
 
 void loop() {
@@ -77,6 +84,9 @@ void loop() {
     print_speeds();
     prev_ms = millis();
   }
+  set_voltage(0, 0.15);
+  set_voltage(1, 0.15);
+  set_voltage(2, 0.15);
 }
 
 void print_roll_pitch_yaw() {
@@ -123,12 +133,12 @@ void print_calibration() {
 // motor_id: 0 to 2
 // voltage: -1.0 to 1.0
 void set_voltage(int motor_id, float voltage) {
-  float pwm = abs(voltage);
+  int pwm = (int) (abs(voltage) * 255);
   bool in1 = voltage >= 0;
   bool in2 = voltage <= 0;
   digitalWrite(motor_cfg[motor_id].IN_1, in1);
   digitalWrite(motor_cfg[motor_id].IN_2, in2);
-  analogWrite(motor_cfg[motor_id].PWM, pwm);
+  ledcWrite(motor_id, pwm);
 }
 
 // motor_id: 0 to 2
@@ -141,13 +151,14 @@ void set_torque(int motor_id, float torque) {
 // motor_id: 0 to 2
 // returns speed in RPM
 float get_speed(int motor_id) {
-  unsigned long dt = millis() - motors[motor_id].last_speed_check;
+  unsigned long t = millis();
+  unsigned long dt = t - motors[motor_id].last_speed_check;
   if (dt < 10) {
-    return motors[motor_id].filtered_vel;
+    return motors[motor_id].filtered_vel / TICKS_PER_REV * 60;
   }
   long last_pos = motors[motor_id].position;
   long new_pos = encs[motor_id].getCount();
-  float raw_vel = (1000.0f * (new_pos - last_pos)) / dt
+  float raw_vel = (1000.0f * (new_pos - last_pos)) / dt;
   float filtered_vel = 0.1 * raw_vel + 0.9 * motors[motor_id].filtered_vel;
   motors[motor_id].filtered_vel = filtered_vel;
   motors[motor_id].last_speed_check = t;
@@ -159,9 +170,8 @@ void print_speeds() {
   Serial.println("< motor speeds >");
   Serial.print(get_speed(0));
   Serial.print(", ");
-  Serial.print(get_speed(0));
+  Serial.print(get_speed(1));
   Serial.print(", ");
-  Serial.print(get_speed(0));
-  Serial.print(", ");
+  Serial.print(get_speed(2));
   Serial.println();
 }
