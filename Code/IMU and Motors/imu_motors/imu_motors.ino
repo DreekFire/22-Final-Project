@@ -76,14 +76,18 @@ void setup() {
 }
 
 void loop() {
+  if (mpu.update()) {
   static uint32_t prev_ms = millis();
-  if (millis() > prev_ms + 25) {
-    print_speeds();
-    prev_ms = millis();
+    if (millis() > prev_ms + 25) {
+      //print_roll_pitch_yaw();
+      prev_ms = millis();
+    }
+
   }
-  set_voltage(0, 0.15);
-  set_voltage(1, 0.15);
-  set_voltage(2, 0.15);
+  print_speeds();
+  // set_voltage(0, 0.15);
+  // set_voltage(1, 0.15);
+  // set_voltage(2, 0.15);
 }
 
 void print_roll_pitch_yaw() {
