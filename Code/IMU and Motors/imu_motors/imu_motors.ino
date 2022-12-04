@@ -19,7 +19,7 @@ struct motor_pin_config {
 
 struct motor_pin_config motor_cfg[3] = {
   {25, 4, 26, 15, 32},
-  {17, 16, 21, 27, 33},
+  {17, 16, 21, 14, 33},
   {18, 5, 19, 13, 12},
 };
 
@@ -78,9 +78,6 @@ void setup() {
 void loop() {
   static uint32_t prev_ms = millis();
   if (millis() > prev_ms + 25) {
-    if (mpu.update()) {
-      print_roll_pitch_yaw();
-    }
     print_speeds();
     prev_ms = millis();
   }
