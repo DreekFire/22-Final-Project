@@ -2,12 +2,19 @@
 #include <ESP32Encoder.h>
 #include "BluetoothSerial.h"
 
-//Setting various globals
-int MAX_RPM = 435; // no-load RPM at 12VDC
-int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
-int TICKS_PER_REV = 384.5;
+//Trying to enable BT
+#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
 
-float DEG2RAD = 3.1415 / 180;
+//Setting various globals
+const int MAX_RPM = 435; // no-load RPM at 12VDC
+const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
+const int TICKS_PER_REV = 384.5;
+const float MIN_VOLTAGE = 0.02;
+const float BUMP_VOLTAGE = 0.12;
+
+const float DEG2RAD = 3.1415 / 180;
 
 //Bluetooth input/output vars
 bool motorToggle = false;
@@ -16,10 +23,10 @@ String inputPacket = "";
 String outputPacket = "";
 
 // ****** CONTROL MATRICES: ********//
-float K[30] = {0.0, -0.87287, -6.56277, -0.0, -0.09823, 0.0, -1.13553, -1.38214, 0.0, -0.05754, 0.75593, 0.43643, 3.28137, 5.68272, -0.09823, 0.9833, 0.56776, 0.69107, 1.19635, -0.05754, -0.75593, 0.43643, 3.28137, -5.68272, -0.09823, -0.9833, 0.56776, 0.69107, -1.19635, -0.05754};
-float AKF[100] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.04669, 0.0, -0.0, -0.0, 13.00869, -1.87431, 0.0, 0.0, 0.0, 0.0, 0.0, -0.04665, 0.0, 13.0096, -0.0, 0.0, -1.87414, 0.0, 0.0, 0.0, -0.0, 0.0, -0.22601, -0.0, 0.0, -0.0, 0.0, 0.1694, 0.0, 0.0, 0.0, -0.08791, 0.0, -1.41972, -0.0, 0.0, -0.23864, 0.0, 0.0, 0.0, -0.08792, 0.0, -0.0, -0.0, -1.42143, -0.23838, 0.0, 0.0, 0.0, 0.0, 30.2094, 0.0, -0.0, -0.0, 69.70034, -15.52235, 0.0, 0.0, 0.0, 0.0, 0.0, 30.2492, 0.0, 69.75045, -0.0, 0.0, -15.53149, 0.0, 0.0, 0.0, 0.0, 0.0, -0.02658, -0.0, -0.0, 0.0, 0.0, -1.10815};
-float BKF_bot[15] = {0.0, -3.93952, 3.93952, 4.54896, -2.27448, -2.27448, -17.52692, 8.76342, 8.76342, 0.0, 15.19822, -15.19822, -29.25137, -29.25137, -29.25137};
-float LKF[90] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.2222, -0.0, -0.0, -0.58871, 0.29435, 0.29435, 0.04669, -0.0, 0.0, -0.0, 1.22192, -0.0, 0.0, 0.50987, -0.50987, -0.0, 0.04665, -0.0, 0.0, -0.0, 0.13289, -0.12431, -0.12431, -0.12431, 0.0, -0.0, 0.22601, -0.0, 0.41895, -0.0, 0.0, -0.05564, 0.05564, -0.0, 0.01505, -0.0, 0.4189, -0.0, -0.0, 0.06433, -0.03216, -0.03216, 0.01506, -0.0, 0.0, 6.67041, -0.0, -0.0, -3.15428, 1.57714, 1.57714, 0.24444, -0.0, 0.0, -0.0, 6.67318, -0.0, 0.0, 2.73365, -2.73365, -0.0, 0.24438, -0.0, -0.0, -0.0, 0.17729, -0.16585, -0.16585, -0.16585, -0.0, -0.0, 0.02658};
+const float K[30] = {0.0, -0.87287, -6.56277, -0.0, -0.09823, 0.0, -1.13553, -1.38214, 0.0, -0.05754, 0.75593, 0.43643, 3.28137, 5.68272, -0.09823, 0.9833, 0.56776, 0.69107, 1.19635, -0.05754, -0.75593, 0.43643, 3.28137, -5.68272, -0.09823, -0.9833, 0.56776, 0.69107, -1.19635, -0.05754};
+const float AKF[100] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.04669, 0.0, -0.0, -0.0, 13.00869, -1.87431, 0.0, 0.0, 0.0, 0.0, 0.0, -0.04665, 0.0, 13.0096, -0.0, 0.0, -1.87414, 0.0, 0.0, 0.0, -0.0, 0.0, -0.22601, -0.0, 0.0, -0.0, 0.0, 0.1694, 0.0, 0.0, 0.0, -0.08791, 0.0, -1.41972, -0.0, 0.0, -0.23864, 0.0, 0.0, 0.0, -0.08792, 0.0, -0.0, -0.0, -1.42143, -0.23838, 0.0, 0.0, 0.0, 0.0, 30.2094, 0.0, -0.0, -0.0, 69.70034, -15.52235, 0.0, 0.0, 0.0, 0.0, 0.0, 30.2492, 0.0, 69.75045, -0.0, 0.0, -15.53149, 0.0, 0.0, 0.0, 0.0, 0.0, -0.02658, -0.0, -0.0, 0.0, 0.0, -1.10815};
+const float BKF_bot[15] = {0.0, -3.93952, 3.93952, 4.54896, -2.27448, -2.27448, -17.52692, 8.76342, 8.76342, 0.0, 15.19822, -15.19822, -29.25137, -29.25137, -29.25137};
+const float LKF[90] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.2222, -0.0, -0.0, -0.58871, 0.29435, 0.29435, 0.04669, -0.0, 0.0, -0.0, 1.22192, -0.0, 0.0, 0.50987, -0.50987, -0.0, 0.04665, -0.0, 0.0, -0.0, 0.13289, -0.12431, -0.12431, -0.12431, 0.0, -0.0, 0.22601, -0.0, 0.41895, -0.0, 0.0, -0.05564, 0.05564, -0.0, 0.01505, -0.0, 0.4189, -0.0, -0.0, 0.06433, -0.03216, -0.03216, 0.01506, -0.0, 0.0, 6.67041, -0.0, -0.0, -3.15428, 1.57714, 1.57714, 0.24444, -0.0, 0.0, -0.0, 6.67318, -0.0, 0.0, 2.73365, -2.73365, -0.0, 0.24438, -0.0, -0.0, -0.0, 0.17729, -0.16585, -0.16585, -0.16585, -0.0, -0.0, 0.02658};
 
 // Control States:
 float x_hat[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -27,21 +34,14 @@ float y[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 float u[3] = {0, 0, 0};
 long int tprev = 0;
 
-//Motor speeds
-float motorVal[3] = {0.0,0.0,0.0};
-
-//Trying to enable BT
-#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
-#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
-#endif
+// Incrimental int to ensure that printing only happens every 256th loop
+int printCount = 0;
 
 //Importing certain vars.
 MPU9250 mpu;
 ESP32Encoder encs[3];
 BluetoothSerial SerialBT;
 
-// Incrimental int to ensure that printing only happens every 256th loop
-int printCount = 0;
 
 // pin config
 struct motor_pin_config {
@@ -129,25 +129,12 @@ void setup() {
 }
 
 void loop() {
-  // Checking status of IMU, setting data as needed
-  if (mpu.update()) {
-  static uint32_t prev_ms = millis();
-    if (millis() > prev_ms + 25) {
-      //print_roll_pitch_yaw();
-      prev_ms = millis();
-    }
-
-  }
-
-  //This line needed to ensure that the Encoder data is up to date
-  motorVal[0] = get_speed(0);
-  motorVal[1] = get_speed(1);
-  motorVal[2] = get_speed(2);
-
+  mpu.update();
 
   // State Feedback:
   read_sensors_to_y();
   calculate_feedback();
+
   set_torque(0, u[0]);
   set_torque(1, u[1]);
   set_torque(2, u[2]);
@@ -158,7 +145,7 @@ void loop() {
     // String outstr = "";
     Serial.println(state_logging());
     // for (int i=0; i<3; i++) {
-    //   outstr = outstr + String(motorVal[i]) + ", " + String(u[i]) + ", ";
+    //   outstr = outstr + String(get_speed(i)) + ", " + String(u[i]) + ", ";
     // }
     // Serial.println(outstr);
   }
@@ -197,29 +184,6 @@ void loop() {
   // }
   
   printCount++;
-
-  // Motor speed set to different voltages, toggled via variable
-  // if (motorToggle){
-  //   set_voltage(0, 0.15);
-  //   set_voltage(1, 0.15);
-  //   set_voltage(2, 0.15);
-  // }
-  // else{
-  //   set_voltage(0, 0);
-  //   set_voltage(1, 0);
-  //   set_voltage(2, 0);
-  // }
-
-}
-
-//Method to print out IMU data
-void print_roll_pitch_yaw() {
-  Serial.print("Yaw, Pitch, Roll: ");
-  Serial.print(mpu.getYaw(), 2);
-  Serial.print(", ");
-  Serial.print(mpu.getPitch(), 2);
-  Serial.print(", ");
-  Serial.println(mpu.getRoll(), 2);
 }
 
 //Method to calibrate IMU
@@ -246,9 +210,10 @@ void print_calibration() {
 // voltage: -1.0 to 1.0
 void set_voltage(int motor_id, float voltage) {
   float absv = abs(voltage);
-  if (absv < 0.12) {
-    absv = 0;
+  if (absv > MIN_VOLTAGE && absv < BUMP_VOLTAGE) {
+    absv = BUMP_VOLTAGE;
   }
+
   int pwm = (int) (absv * 255);
   bool in1 = voltage >= 0;
   bool in2 = voltage <= 0;
@@ -275,25 +240,13 @@ float get_speed(int motor_id) {
   }
   long last_pos = motors[motor_id].position;
   long new_pos = encs[motor_id].getCount();
-  float raw_vel = (1000.0f * (new_pos - last_pos)) / dt;
+  float raw_vel = - (1000.0f * (new_pos - last_pos)) / dt;
   float filtered_vel = 0.2 * raw_vel + 0.8 * motors[motor_id].filtered_vel;
   motors[motor_id].filtered_vel = filtered_vel;
   motors[motor_id].last_speed_check = t;
   motors[motor_id].position = new_pos;
   return filtered_vel / TICKS_PER_REV * 60;
 }
-
-//Method to print each motor speed
-void print_speeds() {
-  Serial.println("< motor speeds >");
-  Serial.print(motorVal[0]);
-  Serial.print(", ");
-  Serial.print(motorVal[1]);
-  Serial.print(", ");
-  Serial.print(motorVal[2]);
-  Serial.println();
-}
-
 
 //******************** CONTROL CODE *****************************//
 
@@ -305,9 +258,9 @@ void read_sensors_to_y() {
 	y[2] = DEG2RAD * (mpu.getGyroZ());
 
 	// y[3:6] = wheel speed measurements (wheels 1 through 3)
-	y[3] = motorVal[0] * (6.28 / 60.);
-	y[4] = motorVal[1] * (6.28 / 60.);
-	y[5] = motorVal[2] * (6.28 / 60.);
+	y[3] = get_speed(0) * (6.28 / 60.);
+	y[4] = get_speed(1) * (6.28 / 60.);
+	y[5] = get_speed(2) * (6.28 / 60.);
 
 	// y[6:9] = Roll Pitch Yaw
 	y[6] = DEG2RAD * mpu.getEulerY(); // X axis is (y)
