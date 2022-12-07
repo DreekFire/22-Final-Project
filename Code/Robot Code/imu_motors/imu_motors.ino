@@ -153,14 +153,14 @@ void loop() {
   set_torque(2, u[2]);
 
 
-  if (printCount > 255) {
+  if (printCount > 127) {
     printCount=0;
-    String outstr = "";
-    // Serial.println(state_logging());
-    for (int i=0; i<3; i++) {
-      outstr = outstr + String(motorVal[i]) + ", " + String(u[i]) + ",";
-    }
-    Serial.println(outstr);
+    // String outstr = "";
+    Serial.println(state_logging());
+    // for (int i=0; i<3; i++) {
+    //   outstr = outstr + String(motorVal[i]) + ", " + String(u[i]) + ", ";
+    // }
+    // Serial.println(outstr);
   }
 
 
@@ -245,7 +245,11 @@ void print_calibration() {
 // motor_id: 0 to 2
 // voltage: -1.0 to 1.0
 void set_voltage(int motor_id, float voltage) {
-  int pwm = (int) (abs(voltage) * 255);
+  float absv = abs(voltage);
+  if (absv < 0.12) {
+    absv = 0;
+  }
+  int pwm = (int) (absv * 255);
   bool in1 = voltage >= 0;
   bool in2 = voltage <= 0;
   digitalWrite(motor_cfg[motor_id].IN_1, in1);
@@ -271,8 +275,8 @@ float get_speed(int motor_id) {
   }
   long last_pos = motors[motor_id].position;
   long new_pos = encs[motor_id].getCount();
-  float raw_vel = -(1000.0f * (new_pos - last_pos)) / dt;
-  float filtered_vel = 0.1 * raw_vel + 0.9 * motors[motor_id].filtered_vel;
+  float raw_vel = (1000.0f * (new_pos - last_pos)) / dt;
+  float filtered_vel = 0.2 * raw_vel + 0.8 * motors[motor_id].filtered_vel;
   motors[motor_id].filtered_vel = filtered_vel;
   motors[motor_id].last_speed_check = t;
   motors[motor_id].position = new_pos;
@@ -332,7 +336,8 @@ void calculate_feedback() {
 	// tprev = t
 	tprev = tnew;
 	// u = K @ xhat
-	mat_vec_mul_replace(K, x_hat, u, 3, 10);
+  float x_hat_temp[] = {0, 0, y[6], y[7], y[8], 0, 0, y[0], y[1], y[2]};
+	mat_vec_mul_replace(K, x_hat_temp, u, 3, 10);
 }
 
 // Generate logging string for x_hat, y, and u
