@@ -8,6 +8,9 @@
 #endif
 
 //Setting various globals
+#define ONE_BY_COS_30 1.155
+#define ONE_BY_COS_60 2
+
 const int MAX_RPM = 435; // no-load RPM at 12VDC
 const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
 const int TICKS_PER_REV = 384.5;
@@ -22,17 +25,19 @@ bool writeToggle = false;
 String inputPacket = "";
 String outputPacket = "";
 
-// ****** CONTROL MATRICES: ********//
-float K[30] = {-0.0, -0.0, -2.56292, -0.0, -0.03106, -0.0, -0.0007, -0.51443, -0.0, -0.02855, 0.0, 0.0, 1.28146, 2.21959, -0.03106, 0.00061, 0.00035, 0.25721, 0.4453, -0.02855, -0.0, 0.0, 1.28146, -2.21959, -0.03106, -0.00061, 0.00035, 0.25721, -0.4453, -0.02855};
-float AKF[100] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.00726, 0.0, 0.0, -0.0, 1.36625, -1.56541, 0.0, 0.0, 0.0, 0.0, 0.0, -0.00726, 0.0, 1.3667, 0.0, 0.0, -1.56546, 0.0, 0.0, 0.0, 0.0, 0.0, -0.12197, 0.0, -0.0, 0.0, 0.0, 0.00845, 0.0, 0.0, -0.0, -0.07548, 0.0, -56.25401, 0.0, -0.0, 5.48676, 0.0, 0.0, 0.0, -0.07548, 0.0, 0.0, 0.0, -56.25458, 5.48742, -0.0, 0.0, 0.0, 0.0, 30.42992, 0.0, 0.0, -0.0, 10.41518, -16.88857, 0.0, 0.0, 0.0, 0.0, 0.0, 30.46967, 0.0, 10.42059, -0.0, 0.0, -16.89523, 0.0, 0.0, 0.0, 0.0, 0.0, -0.00484, 0.0, -0.0, 0.0, -0.0, -14.31788};
-float BKF_bot[15] = {0.0, -3.93952, 3.93952, 4.54896, -2.27448, -2.27448, -17.52692, 8.76342, 8.76342, 0.0, 15.19822, -15.19822, -29.25137, -29.25137, -29.25137};
-float LKF[90] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.3919, -0.0, -0.0, -0.06183, 0.03091, 0.03091, 0.00726, -0.0, -0.0, -0.0, 2.39189, -0.0, 0.0, 0.05356, -0.05356, -0.0, 0.00726, -0.0, -0.0, -0.0, 0.48367, -0.09049, -0.09049, -0.09049, -0.0, -0.0, 0.12197, -0.0, 1.6575, -0.0, -0.0, -2.2047, 2.2047, 0.0, 0.00262, -0.0, 1.65691, -0.0, -0.0, 2.54579, -1.2729, -1.2729, 0.00262, -0.0, -0.0, 15.56584, -0.0, -0.0, -0.47134, 0.23567, 0.23567, 0.02392, -0.0, -0.0, -0.0, 15.57181, -0.0, 0.0, 0.4084, -0.4084, -0.0, 0.02392, -0.0, -0.0, -0.0, 6.98411, -1.30665, -1.30665, -1.30665, -0.0, -0.0, 0.00484};
+static float Kp1 = 0.1;
+static float Kd1 = 0;
+static float Ki1 = 0;
+static float I1 = 0;
+static float offset1 = 0;
 
-// Control States:
-float x_hat[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-float y[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-float u[3] = {0, 0, 0};
-long int tprev = 0;
+static float Kp2 = 0.1;
+static float Kd2 = 0;
+static float Ki2 = 0;
+static float I2 = 0;
+static float offset2 = 0;
+
+static float exp_decay = 0.9;
 
 // Incrimental int to ensure that printing only happens every 256th loop
 int printCount = 0;
@@ -131,21 +136,23 @@ void setup() {
 void loop() {
   mpu.update();
 
-  // State Feedback:
-  read_sensors_to_y();
-  calculate_feedback();
+  // PID Feedback:
+  // X axis
+  float e1 = mpu.getEulerY() - offset1;
+  float d1 = mpu.getGyroY();
 
-  // set_torque(0, u[0] * 0.5);
-  // set_torque(1, u[1] * 0.5);
-  // set_torque(2, u[2] * 0.5);
+  float e2 = -mpu.getEulerX() - offset2;
+  float d2 = -mpu.getGyroX();
 
-  set_voltage(0, 0.3);
-  set_voltage(1, -0.15);
-  set_voltage(2, -0.15);
+  float res1 = Kp1 * e1 + Kd1 * d1 + Ki1 * I1;
+  float res2 = Kp2 * e2 + Kd2 * d2 + Ki2 * I2;
 
-  // set_voltage(0, 0.5);
-  // set_voltage(1, 0.5);
-  // set_voltage(2, 0.5);
+  I1 = I1 * exp_decay + e1;
+  I2 = I2 * exp_decay + e2;
+
+  set_voltage(0, clamp( res1 ));
+  set_voltage(1, clamp(-res1 * ONE_BY_COS_60 + res2 * ONE_BY_COS_30));
+  set_voltage(2, clamp(-res1 * ONE_BY_COS_60 - res2 * ONE_BY_COS_30));
 
   if (printCount % 127 == 0) {
     // printCoutn=0;
@@ -154,9 +161,6 @@ void loop() {
     //   outstr = outstr + String(y[i]) + ",";
     // }
     // Serial.println(outstr);
-
-    Serial.println(state_logging());
-
   }
 
 
@@ -257,82 +261,14 @@ float get_speed(int motor_id) {
   return filtered_vel / TICKS_PER_REV * 60;
 }
 
-//******************** CONTROL CODE *****************************//
-
-//Method to create the required y-vector for control
-void read_sensors_to_y() {
-	// y[0:3] = [dphix, dphiy, dphiz]
-	y[0] = DEG2RAD * (mpu.getGyroY());  // X axis is y
-	y[1] = -DEG2RAD * (mpu.getGyroX()); // Y axis is x
-	y[2] = DEG2RAD * (mpu.getGyroZ());
-
-	// y[3:6] = wheel speed measurements (wheels 1 through 3)
-	y[3] = get_speed(0) * (6.28 / 60.);
-	y[4] = get_speed(1) * (6.28 / 60.);
-	y[5] = get_speed(2) * (6.28 / 60.);
-
-	// y[6:9] = Roll Pitch Yaw
-	y[6] = DEG2RAD * mpu.getEulerY(); // X axis is (y)
-	y[7] = -DEG2RAD * mpu.getEulerX(); // Y axis is (-x)
-	y[8] = DEG2RAD * mpu.getEulerZ();
+String pid_logging(e1, d1, i1, e2, p2, i2) {
+  return String(e1) + "," + String(d1) + "," + 
 }
 
-// Method for feedback control
-void calculate_feedback() {
-	// xhat += (t - tprev) * (AK @ xhat + B @ u + LKF @ y)
-	float d_xhat[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-	mat_vec_mul_plus(AKF, x_hat, d_xhat, 10, 10);
-	mat_vec_mul_plus(BKF_bot, u, d_xhat + 5, 5, 3);
-	mat_vec_mul_plus(LKF, y, d_xhat, 10, 9);
-
-	if (tprev == 0) {
-		tprev = millis();
-	}
-	long int tnew = millis();
-	float dt = (tnew - tprev) / 1000.0;
-
-	for (int i=0; i<10; i++) {
-		x_hat[i] += dt * d_xhat[i];
-	}
-
-	// tprev = t
-	tprev = tnew;
-	// u = K @ xhat
-  float x_hat_temp[] = {0, 0, y[6], y[7], y[8], 0, 0, y[0], y[1], y[2]};
-	mat_vec_mul_replace(K, x_hat_temp, u, 3, 10);
-}
-
-// Generate logging string for x_hat, y, and u
-String state_logging() {
-  String rval = String(tprev) + ",";
-  for (int i=0; i<10; i++) {
-    rval = rval + String(x_hat[i]) + ",";
+float clamp(float x) {
+  if (x > 1) {
+    return 1;
+  } else if (x < -1) {
+    return -1;
   }
-  rval += "     ";
-  for (int i=0; i<9; i++) {
-    rval = rval + String(y[i]) + ",";
-  }
-  rval += "     ";
-  for (int i=0; i<3; i++) {
-    rval = rval + String(u[i]) + ",";
-  }
-  return rval;
-}
-
-// Method for matrix multiplication
-void mat_vec_mul_plus(float A[], float b[], float res[], int n, int m) {
-	for (int i=0; i<n; i++) {
-		for (int j=0; j<m; j++) {
-			res[i] += A[i*m + j] * b[j];
-		}
-	}
-}
-
-void mat_vec_mul_replace(float A[], float b[], float res[], int n,int m) {
-	for (int i=0; i<n; i++) {
-		res[i] = 0;
-		for (int j=0; j<m; j++) {
-			res[i] += A[i*m + j] * b[j];
-		}
-	}
 }
