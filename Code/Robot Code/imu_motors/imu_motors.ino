@@ -25,6 +25,7 @@ bool writeToggle = false;
 String inputPacket = "";
 String outputPacket = "";
 
+// PID constants and stats
 static float Kp1 = 0.1;
 static float Kd1 = 0;
 static float Ki1 = 0;
@@ -38,6 +39,11 @@ static float I2 = 0;
 static float offset2 = 0;
 
 static float exp_decay = 0.9;
+
+float e1, e2, d1, d2, res1, res2;
+
+// Time
+static long tprev = 0;
 
 // Incrimental int to ensure that printing only happens every 256th loop
 int printCount = 0;
@@ -136,42 +142,36 @@ void setup() {
 void loop() {
   mpu.update();
 
-  // PID Feedback:
-  // X axis
-  float e1 = mpu.getEulerY() - offset1;
-  float d1 = mpu.getGyroY();
+  long tcurr = millis()
+  if (tcurr - tprev > 10) { // Feedback every 10 ms
+    tprev = tcurr;
 
-  float e2 = -mpu.getEulerX() - offset2;
-  float d2 = -mpu.getGyroX();
+    // PID Feedback:
+    // X axis
+    e1 = mpu.getEulerY() - offset1;
+    d1 = mpu.getGyroY();
 
-  float res1 = Kp1 * e1 + Kd1 * d1 + Ki1 * I1;
-  float res2 = Kp2 * e2 + Kd2 * d2 + Ki2 * I2;
+    e2 = -mpu.getEulerX() - offset2;
+    d2 = -mpu.getGyroX();
 
-  I1 = I1 * exp_decay + e1;
-  I2 = I2 * exp_decay + e2;
+    res1 = Kp1 * e1 + Kd1 * d1 + Ki1 * I1;
+    res2 = Kp2 * e2 + Kd2 * d2 + Ki2 * I2;
 
-  set_voltage(0, clamp( res1 ));
-  set_voltage(1, clamp(-res1 * ONE_BY_COS_60 + res2 * ONE_BY_COS_30));
-  set_voltage(2, clamp(-res1 * ONE_BY_COS_60 - res2 * ONE_BY_COS_30));
+    I1 = I1 * exp_decay + e1;
+    I2 = I2 * exp_decay + e2;
 
-  if (printCount % 127 == 0) {
-    // printCoutn=0;
-    // String outstr = "";
-    // for (int i=6; i<9; i++) {
-    //   outstr = outstr + String(y[i]) + ",";
-    // }
-    // Serial.println(outstr);
+    set_voltage(0, clamp( res1 ));
+    set_voltage(1, clamp(-res1 * ONE_BY_COS_60 + res2 * ONE_BY_COS_30));
+    set_voltage(2, clamp(-res1 * ONE_BY_COS_60 - res2 * ONE_BY_COS_30));
   }
-
 
   // ******* BLACK VOODOO BLUETOOTH STUFF ******** //
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
-  if (printCount >= 256){
+  if (printCount >= 128){
     printCount = 0;
     // Send routine output packet
     // outputPacket = String(x_hat[0]) +"," + String(x_hat[1]) + "," + String(x_hat[2]);
-    outputPacket = state_logging();
-
+    outputPacket = pid_logging();
   }
   // Recieve BT commands
   else{
@@ -261,8 +261,8 @@ float get_speed(int motor_id) {
   return filtered_vel / TICKS_PER_REV * 60;
 }
 
-String pid_logging(e1, d1, i1, e2, p2, i2) {
-  return String(e1) + "," + String(d1) + "," + 
+String pid_logging() {
+  return String(e1) + "," + String(d1) + "," + String(I1) + ",  " + String(e2) + "," + String(d2) + "," + String(I2);
 }
 
 float clamp(float x) {
