@@ -12,7 +12,7 @@ const int MAX_RPM = 435; // no-load RPM at 12VDC
 const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
 const int TICKS_PER_REV = 384.5;
 const float MIN_VOLTAGE = 0.02;
-const float BUMP_VOLTAGE = 0.12;
+const float BUMP_VOLTAGE = 0.08;
 
 const float DEG2RAD = 3.1415 / 180;
 
@@ -23,10 +23,10 @@ String inputPacket = "";
 String outputPacket = "";
 
 // ****** CONTROL MATRICES: ********//
-static float K[30] = {0.0, -0.87287, -6.56277, -0.0, -0.09823, 0.0, -1.13553, -1.38214, 0.0, -0.05754, 0.75593, 0.43643, 3.28137, 5.68272, -0.09823, 0.9833, 0.56776, 0.69107, 1.19635, -0.05754, -0.75593, 0.43643, 3.28137, -5.68272, -0.09823, -0.9833, 0.56776, 0.69107, -1.19635, -0.05754};
-static float AKF[100] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.04669, 0.0, -0.0, -0.0, 13.00869, -1.87431, 0.0, 0.0, 0.0, 0.0, 0.0, -0.04665, 0.0, 13.0096, -0.0, 0.0, -1.87414, 0.0, 0.0, 0.0, -0.0, 0.0, -0.22601, -0.0, 0.0, -0.0, 0.0, 0.1694, 0.0, 0.0, 0.0, -0.08791, 0.0, -1.41972, -0.0, 0.0, -0.23864, 0.0, 0.0, 0.0, -0.08792, 0.0, -0.0, -0.0, -1.42143, -0.23838, 0.0, 0.0, 0.0, 0.0, 30.2094, 0.0, -0.0, -0.0, 69.70034, -15.52235, 0.0, 0.0, 0.0, 0.0, 0.0, 30.2492, 0.0, 69.75045, -0.0, 0.0, -15.53149, 0.0, 0.0, 0.0, 0.0, 0.0, -0.02658, -0.0, -0.0, 0.0, 0.0, -1.10815};
-static float BKF_bot[15] = {0.0, -3.93952, 3.93952, 4.54896, -2.27448, -2.27448, -17.52692, 8.76342, 8.76342, 0.0, 15.19822, -15.19822, -29.25137, -29.25137, -29.25137};
-static float LKF[90] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.2222, -0.0, -0.0, -0.58871, 0.29435, 0.29435, 0.04669, -0.0, 0.0, -0.0, 1.22192, -0.0, 0.0, 0.50987, -0.50987, -0.0, 0.04665, -0.0, 0.0, -0.0, 0.13289, -0.12431, -0.12431, -0.12431, 0.0, -0.0, 0.22601, -0.0, 0.41895, -0.0, 0.0, -0.05564, 0.05564, -0.0, 0.01505, -0.0, 0.4189, -0.0, -0.0, 0.06433, -0.03216, -0.03216, 0.01506, -0.0, 0.0, 6.67041, -0.0, -0.0, -3.15428, 1.57714, 1.57714, 0.24444, -0.0, 0.0, -0.0, 6.67318, -0.0, 0.0, 2.73365, -2.73365, -0.0, 0.24438, -0.0, -0.0, -0.0, 0.17729, -0.16585, -0.16585, -0.16585, -0.0, -0.0, 0.02658};
+float K[30] = {-0.0, -0.0, -2.56292, -0.0, -0.03106, -0.0, -0.0007, -0.51443, -0.0, -0.02855, 0.0, 0.0, 1.28146, 2.21959, -0.03106, 0.00061, 0.00035, 0.25721, 0.4453, -0.02855, -0.0, 0.0, 1.28146, -2.21959, -0.03106, -0.00061, 0.00035, 0.25721, -0.4453, -0.02855};
+float AKF[100] = {0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.00726, 0.0, 0.0, -0.0, 1.36625, -1.56541, 0.0, 0.0, 0.0, 0.0, 0.0, -0.00726, 0.0, 1.3667, 0.0, 0.0, -1.56546, 0.0, 0.0, 0.0, 0.0, 0.0, -0.12197, 0.0, -0.0, 0.0, 0.0, 0.00845, 0.0, 0.0, -0.0, -0.07548, 0.0, -56.25401, 0.0, -0.0, 5.48676, 0.0, 0.0, 0.0, -0.07548, 0.0, 0.0, 0.0, -56.25458, 5.48742, -0.0, 0.0, 0.0, 0.0, 30.42992, 0.0, 0.0, -0.0, 10.41518, -16.88857, 0.0, 0.0, 0.0, 0.0, 0.0, 30.46967, 0.0, 10.42059, -0.0, 0.0, -16.89523, 0.0, 0.0, 0.0, 0.0, 0.0, -0.00484, 0.0, -0.0, 0.0, -0.0, -14.31788};
+float BKF_bot[15] = {0.0, -3.93952, 3.93952, 4.54896, -2.27448, -2.27448, -17.52692, 8.76342, 8.76342, 0.0, 15.19822, -15.19822, -29.25137, -29.25137, -29.25137};
+float LKF[90] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.3919, -0.0, -0.0, -0.06183, 0.03091, 0.03091, 0.00726, -0.0, -0.0, -0.0, 2.39189, -0.0, 0.0, 0.05356, -0.05356, -0.0, 0.00726, -0.0, -0.0, -0.0, 0.48367, -0.09049, -0.09049, -0.09049, -0.0, -0.0, 0.12197, -0.0, 1.6575, -0.0, -0.0, -2.2047, 2.2047, 0.0, 0.00262, -0.0, 1.65691, -0.0, -0.0, 2.54579, -1.2729, -1.2729, 0.00262, -0.0, -0.0, 15.56584, -0.0, -0.0, -0.47134, 0.23567, 0.23567, 0.02392, -0.0, -0.0, -0.0, 15.57181, -0.0, 0.0, 0.4084, -0.4084, -0.0, 0.02392, -0.0, -0.0, -0.0, 6.98411, -1.30665, -1.30665, -1.30665, -0.0, -0.0, 0.00484};
 
 // Control States:
 float x_hat[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -82,11 +82,11 @@ void setup() {
   setting.accel_fs_sel = ACCEL_FS_SEL::A2G;
   setting.gyro_fs_sel = GYRO_FS_SEL::G250DPS;
   setting.mag_output_bits = MAG_OUTPUT_BITS::M14BITS;
-  setting.fifo_sample_rate = FIFO_SAMPLE_RATE::SMPL_500HZ;
+  setting.fifo_sample_rate = FIFO_SAMPLE_RATE::SMPL_1000HZ;
   setting.gyro_fchoice = 0x03;
-  setting.gyro_dlpf_cfg = GYRO_DLPF_CFG::DLPF_41HZ;
+  setting.gyro_dlpf_cfg = GYRO_DLPF_CFG::DLPF_92HZ;
   setting.accel_fchoice = 0x01;
-  setting.accel_dlpf_cfg = ACCEL_DLPF_CFG::DLPF_45HZ;
+  setting.accel_dlpf_cfg = ACCEL_DLPF_CFG::DLPF_99HZ;
 
   // Trying to setup IMU on address 0x68
   if (!mpu.setup(0x68, setting)) {  
@@ -103,7 +103,7 @@ void setup() {
   delay(5000);
   mpu.calibrateAccelGyro();
 
-  mpu.setFilterIterations(20);
+  mpu.setFilterIterations(10);
 
   /*Serial.println("Mag calibration will start in 5sec.");
   Serial.println("Please Wave device in a figure eight until done.");
@@ -135,53 +135,62 @@ void loop() {
   read_sensors_to_y();
   calculate_feedback();
 
-  set_torque(0, u[0]);
-  set_torque(1, u[1]);
-  set_torque(2, u[2]);
+  // set_torque(0, u[0] * 0.5);
+  // set_torque(1, u[1] * 0.5);
+  // set_torque(2, u[2] * 0.5);
 
+  set_voltage(0, 0.3);
+  set_voltage(1, -0.15);
+  set_voltage(2, -0.15);
 
-  if (printCount > 127) {
-    printCount=0;
+  // set_voltage(0, 0.5);
+  // set_voltage(1, 0.5);
+  // set_voltage(2, 0.5);
+
+  if (printCount % 127 == 0) {
+    // printCoutn=0;
     // String outstr = "";
-    Serial.println(state_logging());
-    // for (int i=0; i<3; i++) {
-    //   outstr = outstr + String(get_speed(i)) + ", " + String(u[i]) + ", ";
+    // for (int i=6; i<9; i++) {
+    //   outstr = outstr + String(y[i]) + ",";
     // }
     // Serial.println(outstr);
+
+    Serial.println(state_logging());
+
   }
 
 
   // ******* BLACK VOODOO BLUETOOTH STUFF ******** //
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
-  // if (printCount >= 256){
-  //   printCount = 0;
-  //   // Send routine output packet
-  //   // outputPacket = String(x_hat[0]) +"," + String(x_hat[1]) + "," + String(x_hat[2]);
-  //   outputPacket = state_logging();
+  if (printCount >= 256){
+    printCount = 0;
+    // Send routine output packet
+    // outputPacket = String(x_hat[0]) +"," + String(x_hat[1]) + "," + String(x_hat[2]);
+    outputPacket = state_logging();
 
-  // }
-  // // Recieve BT commands
-  // else{
-  //   //Writing to BT out
-  //   if (outputPacket != "") {
-  //     SerialBT.flush();
-  //     SerialBT.println(outputPacket);
-  //   }
-  //   //Recieving to BT in
-  //   if (SerialBT.available()) {
-  //     inputPacket = SerialBT.readStringUntil('\n');
-  //     Serial.println(inputPacket);
-  //     inputPacket.trim();
-  //   }
-  //   //Read char e for toggle motors
-  //   if (inputPacket == "e"){
-  //     motorToggle = !motorToggle;
-  //     Serial.print("TOGGLE");
-  //   }
-  //   //Clearing packets
-  //   inputPacket = "";
-  //   outputPacket = "";
-  // }
+  }
+  // Recieve BT commands
+  else{
+    //Writing to BT out
+    if (outputPacket != "") {
+      SerialBT.flush();
+      SerialBT.println(outputPacket);
+    }
+    //Recieving to BT in
+    if (SerialBT.available()) {
+      inputPacket = SerialBT.readStringUntil('\n');
+      Serial.println(inputPacket);
+      inputPacket.trim();
+    }
+    //Read char e for toggle motors
+    if (inputPacket == "e"){
+      motorToggle = !motorToggle;
+      Serial.print("TOGGLE");
+    }
+    //Clearing packets
+    inputPacket = "";
+    outputPacket = "";
+  }
   
   printCount++;
 }
@@ -254,7 +263,7 @@ float get_speed(int motor_id) {
 void read_sensors_to_y() {
 	// y[0:3] = [dphix, dphiy, dphiz]
 	y[0] = DEG2RAD * (mpu.getGyroY());  // X axis is y
-	y[1] = DEG2RAD * -(mpu.getGyroX()); // Y axis is -x
+	y[1] = -DEG2RAD * (mpu.getGyroX()); // Y axis is x
 	y[2] = DEG2RAD * (mpu.getGyroZ());
 
 	// y[3:6] = wheel speed measurements (wheels 1 through 3)
@@ -273,7 +282,7 @@ void calculate_feedback() {
 	// xhat += (t - tprev) * (AK @ xhat + B @ u + LKF @ y)
 	float d_xhat[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 	mat_vec_mul_plus(AKF, x_hat, d_xhat, 10, 10);
-	// mat_vec_mul_plus(BKF_bot, u, d_xhat + 5, 5, 3);
+	mat_vec_mul_plus(BKF_bot, u, d_xhat + 5, 5, 3);
 	mat_vec_mul_plus(LKF, y, d_xhat, 10, 9);
 
 	if (tprev == 0) {
@@ -299,9 +308,11 @@ String state_logging() {
   for (int i=0; i<10; i++) {
     rval = rval + String(x_hat[i]) + ",";
   }
+  rval += "     ";
   for (int i=0; i<9; i++) {
     rval = rval + String(y[i]) + ",";
   }
+  rval += "     ";
   for (int i=0; i<3; i++) {
     rval = rval + String(u[i]) + ",";
   }
