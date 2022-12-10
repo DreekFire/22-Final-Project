@@ -14,7 +14,7 @@
 const int MAX_RPM = 435; // no-load RPM at 12VDC
 const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
 const int TICKS_PER_REV = 384.5;
-const float MIN_VOLTAGE = 0.02;
+const float MIN_VOLTAGE = 0.01;
 const float BUMP_VOLTAGE = 0.08;
 
 const float DEG2RAD = 3.1415 / 180;
@@ -95,7 +95,7 @@ void setup() {
   setting.mag_output_bits = MAG_OUTPUT_BITS::M14BITS;
   setting.fifo_sample_rate = FIFO_SAMPLE_RATE::SMPL_1000HZ;
   setting.gyro_fchoice = 0x03;
-  setting.gyro_dlpf_cfg = GYRO_DLPF_CFG::DLPF_92HZ;
+  setting.gyro_dlpf_cfg = GYRO_DLPF_CFG::DLPF_41HZ;
   setting.accel_fchoice = 0x01;
   setting.accel_dlpf_cfg = ACCEL_DLPF_CFG::DLPF_99HZ;
 
@@ -155,7 +155,7 @@ void loop() {
     d2 = -mpu.getGyroX();
 
     res1 = Kp1 * e1 + Kd1 * d1 + Ki1 * I1;
-    res2 = Kp2 * e2 + Kd2 * d2 + Ki2 * I2;
+    res2 = 0; //Kp2 * e2 + Kd2 * d2 + Ki2 * I2;
 
     I1 = I1 * exp_decay + e1;
     I2 = I2 * exp_decay + e2;
@@ -288,10 +288,10 @@ String pid_logging() {
 }
 
 float clamp(float x) {
-  if (x > 1) {
-    return 1;
-  } else if (x < -1) {
-    return -1;
+  if (x > 0.4) {
+    return 0.4;
+  } else if (x < -0.4) {
+    return -0.4;
   }
   return x;
 }

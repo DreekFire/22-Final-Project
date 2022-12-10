@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 import matplotlib
-serialPort = serial.Serial(port='COM13', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
+serialPort = serial.Serial(port='COM5', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
 size = 1024
 count = 0
 # use ggplot style for more sophisticated visuals
@@ -93,7 +93,7 @@ while 1:
             y_vec = np.append(y_vec[1:],0.0)
             y_vec2 = np.append(y_vec2[1:],0.0)
             #y_vec3 = np.append(y_vec3[1:],0.0)
-        serialPort.write(bytes("-0.02,0,0|",'utf-8'))
+        serialPort.write(bytes("-0.035,0,-0.001|",'utf-8'))
 # First 10 are x hat, next 9 are sensor reading gyro, speed, roll pitch yaw.
 
 
