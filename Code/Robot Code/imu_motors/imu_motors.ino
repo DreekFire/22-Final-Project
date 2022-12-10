@@ -52,7 +52,7 @@ int printCount = 0;
 MPU9250 mpu;
 ESP32Encoder encs[3];
 BluetoothSerial SerialBT;
-
+float pidVal[3] = {0.0,0.0,0.0};
 
 // pin config
 struct motor_pin_config {
@@ -142,7 +142,7 @@ void setup() {
 void loop() {
   mpu.update();
 
-  long tcurr = millis()
+  long tcurr = millis();
   if (tcurr - tprev > 10) { // Feedback every 10 ms
     tprev = tcurr;
 
@@ -182,9 +182,31 @@ void loop() {
     }
     //Recieving to BT in
     if (SerialBT.available()) {
-      inputPacket = SerialBT.readStringUntil('\n');
-      Serial.println(inputPacket);
+      inputPacket = SerialBT.readStringUntil('|');
+      //Serial.println(inputPacket);
       inputPacket.trim();
+    }
+    if(inputPacket != ""){
+      char str_array[inputPacket.length() + 1];
+      inputPacket.toCharArray(str_array, inputPacket.length() + 1);
+      char* d = strtok(str_array, ",");
+      int i = 0;
+      while (d != NULL && i <= 2){
+        pidVal[i] = atof(d);
+        d = strtok(NULL, ",");
+        i++;
+      }
+      SerialBT.flush();
+      Kp1 = pidVal[0];
+      Kp2 = pidVal[0];
+      Ki1 = pidVal[1];
+      Ki1 = pidVal[1];
+      Kd1 = pidVal[2];
+      Kd1 = pidVal[2];
+      Serial.print(Kp1);
+      Serial.print(Ki1);
+      Serial.print(Kd1);
+      Serial.println("end Val");
     }
     //Read char e for toggle motors
     if (inputPacket == "e"){
@@ -271,4 +293,5 @@ float clamp(float x) {
   } else if (x < -1) {
     return -1;
   }
+  return x;
 }
