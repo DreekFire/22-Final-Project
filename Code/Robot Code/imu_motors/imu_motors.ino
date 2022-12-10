@@ -8,8 +8,8 @@
 #endif
 
 //Setting various globals
-#define ONE_BY_COS_30 1.155
-#define ONE_BY_COS_60 2
+#define COS_30 0.866
+#define COS_60 0.5
 
 const int MAX_RPM = 435; // no-load RPM at 12VDC
 const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
@@ -161,8 +161,8 @@ void loop() {
     I2 = I2 * exp_decay + e2;
 
     set_voltage(0, clamp( res1 ));
-    set_voltage(1, clamp(-res1 * ONE_BY_COS_60 + res2 * ONE_BY_COS_30));
-    set_voltage(2, clamp(-res1 * ONE_BY_COS_60 - res2 * ONE_BY_COS_30));
+    set_voltage(1, clamp(-res1 * COS_60 + res2 * COS_30));
+    set_voltage(2, clamp(-res1 * COS_60 - res2 * COS_30));
   }
 
   // ******* BLACK VOODOO BLUETOOTH STUFF ******** //
