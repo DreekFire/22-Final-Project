@@ -93,7 +93,9 @@ while 1:
             y_vec = np.append(y_vec[1:],0.0)
             y_vec2 = np.append(y_vec2[1:],0.0)
             #y_vec3 = np.append(y_vec3[1:],0.0)
-        serialPort.write(bytes("-0.035,0,-0.001|",'utf-8'))
+        serialPort.write(bytes("-0.1,-0.006,-0.0005",'utf-8'))
+        #serialPort.write(bytes("-0.07,-0.002,-0.0015",'utf-8'))
+        #serialPort.write(bytes("-0.002,-0.0005,-0.002|",'utf-8'))
 # First 10 are x hat, next 9 are sensor reading gyro, speed, roll pitch yaw.
 
 
