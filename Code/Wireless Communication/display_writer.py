@@ -3,7 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 import matplotlib
-serialPort = serial.Serial(port='COM5', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
+from tkinter import *
+from tkinter import font
+import time
+serialPort = serial.Serial(port='COM13', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
 size = 1024
 count = 0
 # use ggplot style for more sophisticated visuals
@@ -14,61 +17,88 @@ data1 = []
 data2 = []
 data3 = []
 lineArg = [data1, data2, data3]
-ax = ""
-fig = ""
+
 dataMax = [0,0,0]
 dataMin = [0,0,0]
-sizeArg = 100
-x_vec = np.linspace(0,1,sizeArg+1)[0:-1]
-y_vec = np.zeros(sizeArg)
-y_vec2 = np.zeros(sizeArg)
-y_vec3 = np.zeros(sizeArg)
-# Secondary plot
+
+
+# Create the root window and set its title
+root = Tk()
+root.title("Live Graph")
+root.geometry("600x600+0+0")
+
+# Create the figure and set its size
+fig = plt.figure(figsize=(6, 4))
+
+# Create the axes for the plot
+ax = fig.add_subplot(1, 1, 1)
+
+# Set the axes labels and title
+ax.set_xlabel("Time")
+ax.set_ylabel("Value")
+ax.set_title("Live Graph of Random Data")
+
+# Create 3 empty lists to hold the random data
+datalist1 = []
+datalist2 = []
+datalist3 = []
+
+# Create 3 empty variables to hold the input values
+input1 = None
+input2 = None
+input3 = None
+
+# This function will be called repeatedly to update the graph with new data
+def update_graph(inputData):
+    # Generate some random data and append it to the lists
+    data1.append(inputData[0])
+    data2.append(inputData[1])
+    data3.append(inputData[2])
+
+    # Clear the axes and redraw the plot with the new data
+    
+    ax.clear()
+    ax.plot(data1, label="Data 1")
+    ax.plot(data2, label="Data 2")
+    ax.plot(data3, label="Data 3")
+    ax.set_xlim(len(data1) - 100, len(data1))
+    ax.legend()
+
+    # Update the canvas to show the new plot
+    fig.canvas.draw()
+
+
+# This function will be called when the user clicks the "Save Inputs" button
+def save_inputs():
+    # Set the global variables to the values in the text boxes
+    global input1
+    global input2
+    global input3
+    input1 = textbox1.get()
+    input2 = textbox2.get()
+    input3 = textbox3.get()
+    print(f"Inputs saved: {input1}, {input2}, {input3}")
+    outString = input1 + "," + input2 + "," + input3 + "|"
+    serialPort.write(bytes(outString,'utf-8'))
+
+
+# Create the text boxes and a button to save the inputs
+largerText = font.Font(size=20)
+textbox1 = Entry(root, font = largerText)
+textbox1.pack()
+textbox2 = Entry(root, font = largerText)
+textbox2.pack()
+textbox3 = Entry(root, font = largerText)
+textbox3.pack()
+button = Button(root, text="Update Values", command=save_inputs, font=largerText)
+button.pack()
+
+
+
+# Show the plot
 plt.ion()
-fig2 = plt.figure(figsize=(13,6))
-ax2 = fig2.add_subplot(111)
 plt.show()
 
-def live_plotter(x_vec,y1_data,line1,id,identifier='',pause_time=0.1):
-    global ax
-    global fig
-    if line1[0]==[]:
-        plt.ion()
-        fig = plt.figure(figsize=(13,6))
-        ax = fig.add_subplot(111)
-        plt.ylabel('Output Values')
-        plt.title('Sensor Vals: {}'.format(identifier))
-        plt.legend(loc="upper left")
-
-        plt.show()
-
-
-    if line1[id]==[]:
-        # this is the call to matplotlib that allows dynamic plotting
-        # create a variable for the line so we can later update it
-        line1[id], = ax.plot(x_vec,y1_data,'-o',alpha=0.8)        
-        #update plot label/title
-
-    
-    # after the figure, axis, and line are created, we only need to update the y-data
-    line1[id].set_ydata(y1_data)
-    # adjust limits if new data goes beyond bounds
-    if(id == 2):
-        j = 0 
-        for i in range(len(line1)):
-            dataMin[j] = line1[i].axes.get_ylim()[0]
-            dataMax[j] = line1[i].axes.get_ylim()[1]
-            j = j+1
-        maxLim = np.max(dataMax)
-        minLim = np.min(dataMin)
-
-        if np.min(y1_data)<=maxLim or np.max(y1_data)>=minLim:
-            plt.ylim([np.min(y1_data)-np.std(y1_data),np.max(y1_data)+np.std(y1_data)])
-    # this pauses the data so the figure/axis can catch up - the amount of pause can be altered above
-    plt.pause(pause_time)
-    
-    # return line so we can update it again in the next iteration
-    return line1[id]
 
 while 1:
     data = serialPort.readline(size)
@@ -81,21 +111,10 @@ while 1:
         print(outdata)
         outArray = outdata.split(',')
         if (len(outArray) > 2):
-            #print(outArray[1])
-            count = count + 1
-            y_vec[-1] = outArray[0]
-            y_vec2[-1] = outArray[1]
-            #y_vec3[-1] = outArray[2]
-            lineArg[0] = live_plotter(x_vec, y_vec, lineArg, 0)
-            lineArg[1] = live_plotter(x_vec, y_vec2, lineArg, 1)
-            #lineArg[2] = live_plotter(x_vec,y_vec3, lineArg, 2)
-            #lineArg2 = live_plotter(x_vec, y_vec, lineArg2)
-            y_vec = np.append(y_vec[1:],0.0)
-            y_vec2 = np.append(y_vec2[1:],0.0)
-            #y_vec3 = np.append(y_vec3[1:],0.0)
-        serialPort.write(bytes("-0.1,-0.006,-0.0005",'utf-8'))
-        #serialPort.write(bytes("-0.07,-0.002,-0.0015",'utf-8'))
-        #serialPort.write(bytes("-0.002,-0.0005,-0.002|",'utf-8'))
+            update_graph(outArray)
+            #outString = input1 + "," + input2 + "," + input3 + "|"
+        # TODO change to outString for writing
+        root.update()
 # First 10 are x hat, next 9 are sensor reading gyro, speed, roll pitch yaw.
 
 
