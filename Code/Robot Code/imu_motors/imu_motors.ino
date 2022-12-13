@@ -42,6 +42,11 @@ static float Ki2 = 0;
 static float I2 = 0;
 static float offset2 = 0;
 
+static float KpZ = 0;
+static float KiZ = 0;
+static float KdZ = 0;
+static float IZ = 0;
+
 static float TORQUE_LIMIT = 0.8;
 
 // Time Tracking
@@ -53,7 +58,7 @@ static long tcurr = 0;
 
 static float exp_decay = 0.9;
 
-float e1, e2, d1, d2, res1, res2;
+float e1, e2, eZ, d1, d2, dZ, res1, res2, resZ;
 
 // Incrimental int to ensure that printing only happens every 256th loop
 int printCount = 0;
@@ -148,7 +153,7 @@ void setup() {
     encs[i].setCount(0);
   }
 
-  outputPacket = "Robot Ready";
+  Serial.println("Robot is Ready #001");
 }
 
 void loop() {
@@ -182,15 +187,20 @@ void loop() {
       e2 = -mpu.getEulerX() - offset2;
       d2 = -mpu.getGyroX();
 
+      eZ = mpu.getEulerZ();
+      dZ = mpu.getGyroZ();
+
       res1 = -Kp1 * e1 - Kd1 * d1 - Ki1 * I1;
       res2 = -Kp2 * e2 - Kd2 * d2 - Ki2 * I2;
+      resZ = -KpZ * eZ - KdZ * dZ - KiZ * IZ;
 
       I1 = I1 * exp_decay + e1;
       I2 = I2 * exp_decay + e2;
+      IZ = IZ * exp_decay + eZ;
 
-      set_torque(0, clamp( res1, TORQUE_LIMIT));
-      set_torque(1, clamp(-res1 * COS_60 + res2 * COS_30, TORQUE_LIMIT));
-      set_torque(2, clamp(-res1 * COS_60 - res2 * COS_30, TORQUE_LIMIT));
+      set_torque(0, clamp( res1 - resZ, TORQUE_LIMIT));
+      set_torque(1, clamp(-res1 * COS_60 + res2 * COS_30 - resZ, TORQUE_LIMIT));
+      set_torque(2, clamp(-res1 * COS_60 - res2 * COS_30 - resZ, TORQUE_LIMIT));
       
       // Serial.println(String(get_speed(0)) + ", " + String(get_speed(1)) + "," + String(get_speed(2)));
       // Serial.println(pid_logging());
@@ -237,23 +247,17 @@ void loop() {
 
       String ID = String(d);
       if (ID == "PID") {
-        d = strtok(NULL, ",");
-        int i = 0;
-        while (d != NULL && i <= 2){
-          pidVal[i] = atof(d);
-          d = strtok(NULL, ",");
-          i++;
-        }
-        Kp1 = pidVal[0];
-        Kp2 = pidVal[0];
-
-        Ki1 = pidVal[1];
-        Ki2 = pidVal[1];
-
-        Kd1 = pidVal[2];
-        Kd2 = pidVal[2];
-        
         Serial.print("Recieved PID values: ");
+
+        Kp1 = atof(strtok(NULL, ","));
+        Kp2 = Kp1;
+
+        Ki1 = atof(strtok(NULL, ","));
+        Ki2 = Ki1;
+
+        Kd1 = atof(strtok(NULL, ","));
+        Kd2 = Kd1;
+        
         Serial.print(Kp2);
         Serial.print(", ");
         Serial.print(Ki2);
@@ -286,6 +290,19 @@ void loop() {
         mode = STOP;
         Serial.println("Recieved STOP");
 
+      } else if (ID = "YAW") {
+        KpZ = atof(strtok(NULL, ","));
+        KiZ = atof(strtok(NULL, ","));
+        KdZ = atof(strtok(NULL, ","));
+        
+        Serial.print("Recieved YAW PID values: ");
+        Serial.print(KpZ);
+        Serial.print(", ");
+        Serial.print(KiZ);
+        Serial.print(", ");
+        Serial.print(KdZ);
+        Serial.println(";");
+        
       } else {
         Serial.print("ERROR: Did not recognize identifier ");
         Serial.print(d);
