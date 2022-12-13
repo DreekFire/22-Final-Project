@@ -11,11 +11,11 @@
 #define COS_30 0.866
 #define COS_60 0.5
 
-const int MAX_RPM = 435; // no-load RPM at 12VDC
-const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
+static float KV = 0.00085; // 1 / no-load RPM at 12VDC - adjusted
+static float KM = 1 / 1.8326; // stall torque at 12VDC, Nm
 const int TICKS_PER_REV = 384.5;
-const float MIN_VOLTAGE = 0.025;
-const float BUMP_VOLTAGE = 0.05;
+const float MIN_VOLTAGE = 0.005;
+const float BUMP_VOLTAGE = 0.03;
 
 const float DEG2RAD = 3.1415 / 180;
 
@@ -209,18 +209,20 @@ void loop() {
 
   } else if (mode == STOP) {
 
-    set_voltage(0, 0);
-    set_voltage(1, 0);
-    set_voltage(2, 0);
-    // set_voltage(0, 1);
-    // set_voltage(1, 1);
-    // set_voltage(2, 1);
-    Serial.print("RPMS");
+    // set_voltage(0, 0);
+    // set_voltage(1, 0);
+    // set_voltage(2, 0);
+
+    set_torque(0, 0);
+    set_torque(1, 0);
+    set_torque(2, 0);
+    Serial.print("RPMS: ");
     Serial.print(get_speed(0));
-    Serial.print(",");
+    Serial.print(", ");
     Serial.print(get_speed(1));
-    Serial.print(",");
-    Serial.println(get_speed(2));
+    Serial.print(", ");
+    Serial.print(get_speed(2));
+    Serial.println("");
 
   } else {
     // Serial.println("Error did not recognize MODE");
@@ -369,7 +371,7 @@ void set_voltage(int motor_id, float voltage) {
 // motor_id: 0 to 2
 // torque: -MAX_TORQUE to MAX_TORQUE
 void set_torque(int motor_id, float torque) {
-  float voltage = torque / MAX_TORQUE + get_speed(motor_id) / MAX_RPM;
+  float voltage = torque * KM + get_speed(motor_id) * KV;
   set_voltage(motor_id, voltage);
 }
 
