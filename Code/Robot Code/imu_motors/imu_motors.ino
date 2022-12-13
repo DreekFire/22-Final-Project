@@ -30,14 +30,14 @@ String inputPacket = "";
 String outputPacket = "";
 
 // PID constants and stats
-static float Kp1 = 0.08;
-static float Kd1 = 0.001;
+static float Kp1 = 0.0;
+static float Kd1 = 0.0;
 static float Ki1 = 0;
 static float I1 = 0;
 static float offset1 = 0;
 
-static float Kp2 = 0.08;
-static float Kd2 = 0.001;
+static float Kp2 = 0.0;
+static float Kd2 = 0.0;
 static float Ki2 = 0;
 static float I2 = 0;
 static float offset2 = 0;
@@ -148,13 +148,22 @@ void setup() {
     encs[i].setCount(0);
   }
 
-  offset1 = mpu.getEulerY();
-  offset2 = -mpu.getEulerX();
-  Serial.println("Offsets are: " + String(offset1) + "," + String(offset2));
+  outputPacket = "Robot Ready";
 }
 
 void loop() {
   mpu.update();
+  get_speed(0);
+  get_speed(1);
+  get_speed(2);
+
+  // Serial.print("RPMS:");
+  // Serial.print(get_speed(0));
+  // Serial.print(",");
+  // Serial.print(get_speed(1));
+  // Serial.print(",");
+  // Serial.print(get_speed(2));
+  // Serial.println(";");
 
   tcurr = millis();
 
@@ -188,9 +197,10 @@ void loop() {
     }
 
   } else if (mode == STOP) {
-    set_voltage(0, 0);
-    set_voltage(1, 0);
-    set_voltage(2, 0);
+
+    set_voltage(0, 0.001);
+    set_voltage(1, 0.001);
+    set_voltage(2, 0.001);
   } else {
     Serial.println("Error did not recognize MODE");
   }
@@ -314,8 +324,8 @@ void print_calibration() {
 // voltage: -1.0 to 1.0
 void set_voltage(int motor_id, float voltage) {
   float absv = abs(voltage);
-  if (absv > MIN_VOLTAGE && absv < BUMP_VOLTAGE) {
-    absv = BUMP_VOLTAGE;
+  if (absv > MIN_VOLTAGE) {
+    absv += BUMP_VOLTAGE;
   }
 
   int pwm = (int) (absv * 255);
@@ -353,7 +363,7 @@ float get_speed(int motor_id) {
 }
 
 String pid_logging() {
-  return String(tcurr) + ",   " + String(e1) + "," + String(d1) + "," + String(I1) + ",  " + String(e2) + "," + String(d2) + "," + String(I2);
+  return String(tcurr) + ",   " + String(e1) + "," + String(I1) + "," + String(d1) + ",  " + String(e2) + "," + String(I2) + "," + String(d2);
 }
 
 float clamp(float x, float lim) {
