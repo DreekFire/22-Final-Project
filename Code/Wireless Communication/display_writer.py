@@ -6,7 +6,7 @@ import matplotlib
 from tkinter import *
 from tkinter import font
 import time
-serialPort = serial.Serial(port='COM13', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
+serialPort = serial.Serial(port='COM8', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
 size = 1024
 count = 0
 # use ggplot style for more sophisticated visuals
@@ -16,6 +16,7 @@ plt.style.use('ggplot')
 data1 = []
 data2 = []
 data3 = []
+timeArray = []
 lineArg = [data1, data2, data3]
 
 dataMax = [0,0,0]
@@ -32,6 +33,9 @@ fig = plt.figure(figsize=(6, 4))
 
 # Create the axes for the plot
 ax = fig.add_subplot(1, 1, 1)
+
+    # axi.xaxis.set_major_locator(plt.MaxNLocator(3))
+
 
 # Set the axes labels and title
 ax.set_xlabel("Time")
@@ -51,18 +55,26 @@ input3 = None
 # This function will be called repeatedly to update the graph with new data
 def update_graph(inputData):
     # Generate some random data and append it to the lists
-    data1.append(inputData[0])
-    data2.append(inputData[1])
-    data3.append(inputData[2])
+    timeArray.append(inputData[0])
+    data1.append(inputData[1])
+    data2.append(inputData[2])
+    data3.append(inputData[3])
 
     # Clear the axes and redraw the plot with the new data
     
     ax.clear()
-    ax.plot(data1, label="Data 1")
-    ax.plot(data2, label="Data 2")
-    ax.plot(data3, label="Data 3")
-    ax.set_xlim(len(data1) - 100, len(data1))
-    ax.legend()
+    ax.plot(timeArray, data1, label="Error")
+    ax.plot(timeArray, data2, label="Derivitive")
+    ax.plot(timeArray, data3, label="Integral")
+    # ax.set_xlim(len(timeArray) - 100, len(timeArray))
+ 
+    # ax.legend()
+    # every_nth = round(len(ax.yaxis.get_ticklabels())/4)
+    # for n, label in enumerate(ax.yaxis.get_ticklabels()):
+    #     if n % every_nth != 0:
+    #         label.set_visible(False)
+
+ 
 
     # Update the canvas to show the new plot
     fig.canvas.draw()
@@ -74,6 +86,7 @@ def save_inputs():
     global input1
     global input2
     global input3
+    
     input1 = textbox1.get()
     input2 = textbox2.get()
     input3 = textbox3.get()
