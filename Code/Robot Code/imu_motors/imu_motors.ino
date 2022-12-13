@@ -14,10 +14,14 @@
 const int MAX_RPM = 435; // no-load RPM at 12VDC
 const int MAX_TORQUE = 1.8326; // stall torque at 12VDC, Nm
 const int TICKS_PER_REV = 384.5;
-const float MIN_VOLTAGE = 0.01;
-const float BUMP_VOLTAGE = 0.08;
+const float MIN_VOLTAGE = 0.025;
+const float BUMP_VOLTAGE = 0.05;
 
 const float DEG2RAD = 3.1415 / 180;
+
+// Run Mode:
+enum Mode{RUN, STOP};
+enum Mode mode = STOP;
 
 //Bluetooth input/output vars
 bool motorToggle = false;
@@ -26,24 +30,30 @@ String inputPacket = "";
 String outputPacket = "";
 
 // PID constants and stats
-static float Kp1 = 0.1;
-static float Kd1 = 0;
+static float Kp1 = 0.08;
+static float Kd1 = 0.001;
 static float Ki1 = 0;
 static float I1 = 0;
 static float offset1 = 0;
 
-static float Kp2 = 0.1;
-static float Kd2 = 0;
+static float Kp2 = 0.08;
+static float Kd2 = 0.001;
 static float Ki2 = 0;
 static float I2 = 0;
 static float offset2 = 0;
 
+static float TORQUE_LIMIT = 0.8;
+
+// Time Tracking
+// static int tot_loop_time = 0;
+// static int loops = 0;
+static long tprev = 0;
+static long tcurr = 0;
+
+
 static float exp_decay = 0.9;
 
 float e1, e2, d1, d2, res1, res2;
-
-// Time
-static long tprev = 0;
 
 // Incrimental int to ensure that printing only happens every 256th loop
 int printCount = 0;
@@ -137,41 +147,65 @@ void setup() {
     encs[i].attachFullQuad(motor_cfg[i].DT, motor_cfg[i].CLK);
     encs[i].setCount(0);
   }
+
+  offset1 = mpu.getEulerY();
+  offset2 = -mpu.getEulerX();
+  Serial.println("Offsets are: " + String(offset1) + "," + String(offset2));
 }
 
 void loop() {
   mpu.update();
 
-  long tcurr = millis();
-  if (tcurr - tprev > 10) { // Feedback every 10 ms
-    tprev = tcurr;
+  tcurr = millis();
 
-    // PID Feedback:
-    // X axis
-    e1 = mpu.getEulerY() - offset1;
-    d1 = mpu.getGyroY();
+  if (mode == RUN) {
+    if (tcurr - tprev > 10) { // Feedback every 10 ms
+      printCount++;
+      // tot_loop_time += tcurr - tprev;
+      // loops ++;
+      tprev = tcurr;
 
-    e2 = -mpu.getEulerX() - offset2;
-    d2 = -mpu.getGyroX();
+      // PID Feedback:
+      // X axis
+      e1 = mpu.getEulerY() - offset1;
+      d1 = mpu.getGyroY();
 
-    res1 = Kp1 * e1 + Kd1 * d1 + Ki1 * I1;
-    res2 = 0; //Kp2 * e2 + Kd2 * d2 + Ki2 * I2;
+      e2 = -mpu.getEulerX() - offset2;
+      d2 = -mpu.getGyroX();
 
-    I1 = I1 * exp_decay + e1;
-    I2 = I2 * exp_decay + e2;
+      res1 = -Kp1 * e1 - Kd1 * d1 - Ki1 * I1;
+      res2 = -Kp2 * e2 - Kd2 * d2 - Ki2 * I2;
 
-    set_voltage(0, clamp( res1 ));
-    set_voltage(1, clamp(-res1 * COS_60 + res2 * COS_30));
-    set_voltage(2, clamp(-res1 * COS_60 - res2 * COS_30));
+      I1 = I1 * exp_decay + e1;
+      I2 = I2 * exp_decay + e2;
+
+      set_torque(0, clamp( res1, TORQUE_LIMIT));
+      set_torque(1, clamp(-res1 * COS_60 + res2 * COS_30, TORQUE_LIMIT));
+      set_torque(2, clamp(-res1 * COS_60 - res2 * COS_30, TORQUE_LIMIT));
+      
+      // Serial.println(String(get_speed(0)) + ", " + String(get_speed(1)) + "," + String(get_speed(2)));
+      // Serial.println(pid_logging());
+    }
+
+  } else if (mode == STOP) {
+    set_voltage(0, 0);
+    set_voltage(1, 0);
+    set_voltage(2, 0);
+  } else {
+    Serial.println("Error did not recognize MODE");
   }
 
-  // ******* BLACK VOODOO BLUETOOTH STUFF ******** //
+
+  // BLUETOOTH
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
   if (printCount >= 128){
     printCount = 0;
     // Send routine output packet
     // outputPacket = String(x_hat[0]) +"," + String(x_hat[1]) + "," + String(x_hat[2]);
     outputPacket = pid_logging();
+    // Serial.println("Avg loop time: " + String(tot_loop_time / (float) loops));
+    // tot_loop_time = 0;
+    // loops = 0;
   }
   // Recieve BT commands
   else{
@@ -190,35 +224,70 @@ void loop() {
       char str_array[inputPacket.length() + 1];
       inputPacket.toCharArray(str_array, inputPacket.length() + 1);
       char* d = strtok(str_array, ",");
-      int i = 0;
-      while (d != NULL && i <= 2){
-        pidVal[i] = atof(d);
+
+      String ID = String(d);
+      if (ID == "PID") {
         d = strtok(NULL, ",");
-        i++;
+        int i = 0;
+        while (d != NULL && i <= 2){
+          pidVal[i] = atof(d);
+          d = strtok(NULL, ",");
+          i++;
+        }
+        Kp1 = pidVal[0];
+        Kp2 = pidVal[0];
+
+        Ki1 = pidVal[1];
+        Ki2 = pidVal[1];
+
+        Kd1 = pidVal[2];
+        Kd2 = pidVal[2];
+        
+        Serial.print("Recieved PID values: ");
+        Serial.print(Kp2);
+        Serial.print(", ");
+        Serial.print(Ki2);
+        Serial.print(", ");
+        Serial.print(Kd2);
+        Serial.println(";");
+
+      } else if (ID == "OFFSET") {
+        offset1 = atof(strtok(NULL, ","));
+        offset2 = atof(strtok(NULL, ","));
+
+        Serial.print("Recieved OFFSET values: ");
+        Serial.print(offset1);
+        Serial.print(", ");
+        Serial.print(offset2);
+        Serial.println(";");
+
+      } else if (ID == "START") {        
+        mode = RUN;
+
+        // Reset integrals to zero
+        I1 = 0;
+        I2 = 0;
+        // Set printCount to 0
+        printCount = 0;
+
+        Serial.println("Recieved START");
+
+      } else if (ID == "STOP") {
+        mode = STOP;
+        Serial.println("Recieved STOP");
+
+      } else {
+        Serial.print("ERROR: Did not recognize identifier ");
+        Serial.print(d);
+        Serial.println(";");
       }
       SerialBT.flush();
-      Kp1 = pidVal[0];
-      Kp2 = pidVal[0];
-      Ki1 = pidVal[1];
-      Ki1 = pidVal[1];
-      Kd1 = pidVal[2];
-      Kd1 = pidVal[2];
-      Serial.print(Kp1);
-      Serial.print(Ki1);
-      Serial.print(Kd1);
-      Serial.println("end Val");
     }
-    //Read char e for toggle motors
-    if (inputPacket == "e"){
-      motorToggle = !motorToggle;
-      Serial.print("TOGGLE");
-    }
+    
     //Clearing packets
     inputPacket = "";
     outputPacket = "";
   }
-  
-  printCount++;
 }
 
 //Method to calibrate IMU
@@ -284,14 +353,14 @@ float get_speed(int motor_id) {
 }
 
 String pid_logging() {
-  return String(e1) + "," + String(d1) + "," + String(I1) + ",  " + String(e2) + "," + String(d2) + "," + String(I2);
+  return String(tcurr) + ",   " + String(e1) + "," + String(d1) + "," + String(I1) + ",  " + String(e2) + "," + String(d2) + "," + String(I2);
 }
 
-float clamp(float x) {
-  if (x > 0.4) {
-    return 0.4;
-  } else if (x < -0.4) {
-    return -0.4;
+float clamp(float x, float lim) {
+  if (x > lim) {
+    return lim;
+  } else if (x < -lim) {
+    return -lim;
   }
   return x;
 }
