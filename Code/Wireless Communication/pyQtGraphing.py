@@ -61,7 +61,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.data_line2.setData(self.t, self.integral)
         self.data_line3.setData(self.t, self.derivitive)
 
-serialPort = serial.Serial(port='COM8', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
+serialPort = serial.Serial(port='COM13', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
 size = 1024
 count = 0
 

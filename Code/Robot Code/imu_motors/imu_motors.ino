@@ -61,6 +61,7 @@ static float exp_decay = 0.9;
 float e1, e2, eZ, d1, d2, dZ, res1, res2, resZ;
 
 // Incrimental int to ensure that printing only happens every 256th loop
+int BTCount = 0;
 int printCount = 0;
 
 //Importing certain vars.
@@ -123,8 +124,8 @@ void setup() {
   }
 
   // Calibrating IMU in stationary.
-  Serial.println("Accel Gyro calibration will start in 5sec.");
-  Serial.println("Please leave the device still on the flat plane.");
+  //Serial.println("Accel Gyro calibration will start in 5sec.");
+  // Serial.println("Please leave the device still on the flat plane.");
   mpu.verbose(true);
   delay(5000);
   mpu.calibrateAccelGyro();
@@ -153,7 +154,7 @@ void setup() {
     encs[i].setCount(0);
   }
 
-  Serial.println("Robot is Ready #001");
+  // Serial.println("Robot is Ready #001");
 }
 
 void loop() {
@@ -208,38 +209,50 @@ void loop() {
 
   } else if (mode == STOP) {
 
-    set_voltage(0, 0.001);
-    set_voltage(1, 0.001);
-    set_voltage(2, 0.001);
+    set_voltage(0, 0);
+    set_voltage(1, 0);
+    set_voltage(2, 0);
+    // set_voltage(0, 1);
+    // set_voltage(1, 1);
+    // set_voltage(2, 1);
+    Serial.print("RPMS");
+    Serial.print(get_speed(0));
+    Serial.print(",");
+    Serial.print(get_speed(1));
+    Serial.print(",");
+    Serial.println(get_speed(2));
+
   } else {
-    Serial.println("Error did not recognize MODE");
+    // Serial.println("Error did not recognize MODE");
   }
 
 
   // BLUETOOTH
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
-  if (printCount >= 128){
-    printCount = 0;
+  if (BTCount >= 128){
+    BTCount = 0;
     // Send routine output packet
     // outputPacket = String(x_hat[0]) +"," + String(x_hat[1]) + "," + String(x_hat[2]);
     outputPacket = pid_logging();
     // Serial.println("Avg loop time: " + String(tot_loop_time / (float) loops));
     // tot_loop_time = 0;
     // loops = 0;
-  }
-  // Recieve BT commands
-  else{
-    //Writing to BT out
+        //Writing to BT out
     if (outputPacket != "") {
       SerialBT.flush();
       SerialBT.println(outputPacket);
+      // Serial.println(outputPacket);
     }
     //Recieving to BT in
     if (SerialBT.available()) {
       inputPacket = SerialBT.readStringUntil('|');
-      //Serial.println(inputPacket);
+      // Serial.println(inputPacket);
       inputPacket.trim();
     }
+  }
+  // Recieve BT commands
+  else{
+    BTCount++;
     if(inputPacket != ""){
       char str_array[inputPacket.length() + 1];
       inputPacket.toCharArray(str_array, inputPacket.length() + 1);
@@ -342,7 +355,7 @@ void print_calibration() {
 void set_voltage(int motor_id, float voltage) {
   float absv = abs(voltage);
   if (absv > MIN_VOLTAGE) {
-    absv += BUMP_VOLTAGE;
+    absv = clamp(absv + BUMP_VOLTAGE, 1);
   }
 
   int pwm = (int) (absv * 255);
