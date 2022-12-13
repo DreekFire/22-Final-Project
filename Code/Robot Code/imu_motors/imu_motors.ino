@@ -208,21 +208,20 @@ void loop() {
     }
 
   } else if (mode == STOP) {
+    set_voltage(0, 0);
+    set_voltage(1, 0);
+    set_voltage(2, 0);
 
-    // set_voltage(0, 0);
-    // set_voltage(1, 0);
-    // set_voltage(2, 0);
-
-    set_torque(0, 0);
-    set_torque(1, 0);
-    set_torque(2, 0);
-    Serial.print("RPMS: ");
-    Serial.print(get_speed(0));
-    Serial.print(", ");
-    Serial.print(get_speed(1));
-    Serial.print(", ");
-    Serial.print(get_speed(2));
-    Serial.println("");
+    // set_torque(0, 0);
+    // set_torque(1, 0);
+    // set_torque(2, 0);
+    // Serial.print("RPMS: ");
+    // Serial.print(get_speed(0));
+    // Serial.print(", ");
+    // Serial.print(get_speed(1));
+    // Serial.print(", ");
+    // Serial.print(get_speed(2));
+    // Serial.println("");
 
   } else {
     // Serial.println("Error did not recognize MODE");
