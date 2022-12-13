@@ -11,18 +11,7 @@ from ttkthemes import ThemedTk
 serialPort = serial.Serial(port='COM8', baudrate=115200, timeout=0, parity=serial.PARITY_EVEN, stopbits=1)
 size = 1024
 count = 0
-# use ggplot style for more sophisticated visuals
-# matplotlib.use("Qt5Agg")
-# plt.style.use('ggplot')
 
-# data1 = []
-# data2 = []
-# data3 = []
-# timeArray = []
-# lineArg = [data1, data2, data3]
-
-# dataMax = [0,0,0]
-# dataMin = [0,0,0]
 
 
 # Create the root window and set its title
@@ -30,24 +19,7 @@ root = ThemedTk(theme='yaru')
 root.title("Robot Control")
 root.geometry("400x400+0+0")
 
-# Create the figure and set its size
-# fig = plt.figure(figsize=(6, 4))
 
-# Create the axes for the plot
-# ax = fig.add_subplot(1, 1, 1)
-
-#     # axi.xaxis.set_major_locator(plt.MaxNLocator(3))
-
-
-# # Set the axes labels and title
-# ax.set_xlabel("Time")
-# ax.set_ylabel("Value")
-# ax.set_title("Live Graph of Random Data")
-
-# # Create 3 empty lists to hold the random data
-# datalist1 = []
-# datalist2 = []
-# datalist3 = []
 
 # Create 3 empty variables to hold the input values
 KpInput = None
@@ -112,6 +84,10 @@ def save_offsets():
     serialPort.write(bytes(offsetOut,'utf-8'))
 
 def sendStart():
+    print("Sending 0 PID")
+    outString = "PID," + "0" + "," + "0" + "," + "0" + "|"
+    serialPort.write(bytes(outString,'utf-8'))
+
     print("Sending Start")
     startOut = "START"
     serialPort.write(bytes(startOut,'utf-8'))
