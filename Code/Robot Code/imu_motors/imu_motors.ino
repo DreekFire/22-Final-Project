@@ -11,6 +11,8 @@
 #define COS_30 0.866
 #define COS_60 0.5
 
+#define ROT_SEC_TO_M_S 0.003665 //(rot/min) * 1/60(min/sec) * 2pi (rad/rot * 0.035)m/rad;
+
 static float KV = 0.00085; // 1 / no-load RPM at 12VDC - adjusted
 static float KM = 1 / 1.8326; // stall torque at 12VDC, Nm
 const int TICKS_PER_REV = 384.5;
@@ -18,6 +20,7 @@ const float MIN_VOLTAGE = 0.005;
 const float BUMP_VOLTAGE = 0.03;
 
 const float DEG2RAD = 3.1415 / 180;
+
 
 // Run Mode:
 enum Mode{RUN, STOP};
@@ -30,24 +33,45 @@ String inputPacket = "";
 String outputPacket = "";
 
 // PID constants and stats
-static float Kp1 = 0.0; // 0.11
-static float Kd1 = 0.0; // 0.0005
-static float Ki1 = 0;   // 0
+static float Kp = 0.0; // 0.11
+static float Ki = 0;   // 0
+static float Kd = 0.0; // 0.0005
+
 static float I1 = 0;
-static float offset1 = 0;
-
-static float Kp2 = 0.0;
-static float Kd2 = 0.0;
-static float Ki2 = 0;
 static float I2 = 0;
-static float offset2 = 0;
 
-static float KpZ = 0;
-static float KiZ = 0;
-static float KdZ = 0;
-static float IZ = 0;
+static float x_tilt_target = 0;
+static float y_tilt_target = 0;
 
 static float TORQUE_LIMIT = 0.8;
+
+float e1 = 0, e2 = 0, eZ = 0, d1 = 0, d2 = 0, dZ = 0, res1 = 0, res2 = 0, resZ = 0;
+
+
+// Vel PID
+static float KpV = 0;
+static float KiV = 0;
+static float KdV = 0;
+
+static float vel_est_decay = 0.9;
+
+static float vel_x_est = 0;
+static float vel_y_est = 0;
+static float IVx = 0;
+static float IVy = 0;
+static float last_vel_x = 0;
+static float last_vel_y = 0;
+static float last_vel_time = 0;
+
+static float x_vel_target = 0;
+static float y_vel_target = 0;
+const float MAX_TARGET_VEL = 0.3;
+
+static int loop_count = 0;
+
+const float MAX_TILT_SETPOINT = 5;
+
+float vel_ex = 0, vel_ey = 0, vel_dx = 0, vel_dy = 0;
 
 // Time Tracking
 // static int tot_loop_time = 0;
@@ -56,13 +80,10 @@ static long tprev = 0;
 static long tcurr = 0;
 
 
-static float exp_decay = 0.9;
-
-float e1, e2, eZ, d1, d2, dZ, res1, res2, resZ;
+static float exp_decay = 0.99;
 
 // Incrimental int to ensure that printing only happens every 256th loop
 int BTCount = 0;
-int printCount = 0;
 
 //Importing certain vars.
 MPU9250 mpu;
@@ -174,54 +195,67 @@ void loop() {
   tcurr = millis();
 
   if (mode == RUN) {
-    if (tcurr - tprev > 10) { // Feedback every 10 ms
-      printCount++;
+    if (tcurr - tprev > 10) { // Angle Feedback every 10 ms
       // tot_loop_time += tcurr - tprev;
       // loops ++;
       tprev = tcurr;
 
       // PID Feedback:
       // X axis
-      e1 = mpu.getEulerY() - offset1;
+      e1 = mpu.getEulerY() - x_tilt_target;
       d1 = mpu.getGyroY();
 
-      e2 = -mpu.getEulerX() - offset2;
+      e2 = -mpu.getEulerX() - y_tilt_target;
       d2 = -mpu.getGyroX();
 
-      eZ = mpu.getEulerZ();
-      dZ = mpu.getGyroZ();
-
-      res1 = -Kp1 * e1 - Kd1 * d1 - Ki1 * I1;
-      res2 = -Kp2 * e2 - Kd2 * d2 - Ki2 * I2;
-      resZ = -KpZ * eZ - KdZ * dZ - KiZ * IZ;
+      res1 = -Kp * e1 - Kd * d1 - Ki * I1;
+      res2 = -Kp * e2 - Kd * d2 - Ki * I2;
 
       I1 = I1 * exp_decay + e1;
       I2 = I2 * exp_decay + e2;
-      IZ = IZ * exp_decay + eZ;
 
-      set_torque(0, clamp( res1 - resZ, TORQUE_LIMIT));
-      set_torque(1, clamp(-res1 * COS_60 + res2 * COS_30 - resZ, TORQUE_LIMIT));
-      set_torque(2, clamp(-res1 * COS_60 - res2 * COS_30 - resZ, TORQUE_LIMIT));
+      set_torque(0, clamp( res1, TORQUE_LIMIT));
+      set_torque(1, clamp(-res1 * COS_60 + res2 * COS_30, TORQUE_LIMIT));
+      set_torque(2, clamp(-res1 * COS_60 - res2 * COS_30, TORQUE_LIMIT));
       
+
+      // Setting velocity estimation for the velocity PID
+      vel_x_est = vel_est_decay * vel_x_est + (1 - vel_est_decay) * ( 0 * get_speed(0) + COS_30 * get_speed(1) - COS_30 * get_speed(2)) * ROT_SEC_TO_M_S;
+      vel_y_est = vel_est_decay * vel_y_est + (1 - vel_est_decay) * (-1 * get_speed(0) + COS_60 * get_speed(1) + COS_60 * get_speed(2)) * ROT_SEC_TO_M_S; 
+      loop_count++;   
+
       // Serial.println(String(get_speed(0)) + ", " + String(get_speed(1)) + "," + String(get_speed(2)));
       // Serial.println(pid_logging());
     }
 
+    // Velocity PID runs at 1/10 speed of the other.
+    if (loop_count >= 10) {
+      loop_count = 0;
+
+      vel_ex = vel_x_est - x_vel_target;
+      vel_ey = vel_y_est - y_vel_target;
+
+      vel_dx = (vel_x_est - last_vel_x) / (tcurr - last_vel_time);
+      vel_dy = (vel_y_est - last_vel_y) / (tcurr - last_vel_time);
+
+      x_tilt_target = -clamp(KpV * vel_ey + KiV * IVy + KdV * vel_dy, MAX_TILT_SETPOINT); // Negative because of how the x and y axes are related in tilt / direction. Positive y velocity is REDUCED by Negative angle
+      y_tilt_target =  clamp(KpV * vel_ex + KiV * IVx + KdV * vel_dx, MAX_TILT_SETPOINT);
+
+      IVx = IVx * exp_decay + vel_x_est;
+      IVy = IVy * exp_decay + vel_y_est;
+      last_vel_x = vel_x_est;
+      last_vel_y = vel_y_est;
+      last_vel_time = tcurr;
+
+      Serial.println(vel_pid_logging());
+    }
+
+
   } else if (mode == STOP) {
+
     set_voltage(0, 0);
     set_voltage(1, 0);
     set_voltage(2, 0);
-
-    // set_torque(0, 0);
-    // set_torque(1, 0);
-    // set_torque(2, 0);
-    // Serial.print("RPMS: ");
-    // Serial.print(get_speed(0));
-    // Serial.print(", ");
-    // Serial.print(get_speed(1));
-    // Serial.print(", ");
-    // Serial.print(get_speed(2));
-    // Serial.println("");
 
   } else {
     // Serial.println("Error did not recognize MODE");
@@ -230,14 +264,12 @@ void loop() {
 
   // BLUETOOTH
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
-  if (BTCount >= 128){
-    BTCount = 0;
+
+  // if (BTCount >= 4){
+  // BTCount = 0;
+  if (loop_count == 0) {
     // Send routine output packet
-    // outputPacket = String(x_hat[0]) +"," + String(x_hat[1]) + "," + String(x_hat[2]);
-    outputPacket = pid_logging();
-    // Serial.println("Avg loop time: " + String(tot_loop_time / (float) loops));
-    // tot_loop_time = 0;
-    // loops = 0;
+    outputPacket = vel_pid_logging();
         //Writing to BT out
     if (outputPacket != "") {
       SerialBT.flush();
@@ -263,30 +295,25 @@ void loop() {
       if (ID == "PID") {
         Serial.print("Recieved PID values: ");
 
-        Kp1 = atof(strtok(NULL, ","));
-        Kp2 = Kp1;
-
-        Ki1 = atof(strtok(NULL, ","));
-        Ki2 = Ki1;
-
-        Kd1 = atof(strtok(NULL, ","));
-        Kd2 = Kd1;
+        Kp = atof(strtok(NULL, ","));
+        Ki = atof(strtok(NULL, ","));
+        Kd = atof(strtok(NULL, ","));
         
-        Serial.print(Kp2);
+        Serial.print(Kp);
         Serial.print(", ");
-        Serial.print(Ki2);
+        Serial.print(Ki);
         Serial.print(", ");
-        Serial.print(Kd2);
+        Serial.print(Kd);
         Serial.println(";");
 
       } else if (ID == "OFFSET") {
-        offset1 = atof(strtok(NULL, ","));
-        offset2 = atof(strtok(NULL, ","));
+        x_vel_target = clamp(atof(strtok(NULL, ",")), MAX_TARGET_VEL);
+        y_vel_target = clamp(atof(strtok(NULL, ",")), MAX_TARGET_VEL);
 
-        Serial.print("Recieved OFFSET values: ");
-        Serial.print(offset1);
+        Serial.print("Recieved OFFSET values (NOW VELOCITY): ");
+        Serial.print(x_vel_target);
         Serial.print(", ");
-        Serial.print(offset2);
+        Serial.print(y_vel_target);
         Serial.println(";");
 
       } else if (ID == "START") {        
@@ -295,8 +322,6 @@ void loop() {
         // Reset integrals to zero
         I1 = 0;
         I2 = 0;
-        // Set printCount to 0
-        printCount = 0;
 
         Serial.println("Recieved START");
 
@@ -304,17 +329,17 @@ void loop() {
         mode = STOP;
         Serial.println("Recieved STOP");
 
-      } else if (ID = "YAW") {
-        KpZ = atof(strtok(NULL, ","));
-        KiZ = atof(strtok(NULL, ","));
-        KdZ = atof(strtok(NULL, ","));
+      } else if (ID = "VEL") {
+        KpV = atof(strtok(NULL, ","));
+        KiV = atof(strtok(NULL, ","));
+        KdV = atof(strtok(NULL, ","));
         
-        Serial.print("Recieved YAW PID values: ");
-        Serial.print(KpZ);
+        Serial.print("Recieved VEL PID values: ");
+        Serial.print(KpV);
         Serial.print(", ");
-        Serial.print(KiZ);
+        Serial.print(KiV);
         Serial.print(", ");
-        Serial.print(KdZ);
+        Serial.print(KdV);
         Serial.println(";");
         
       } else {
@@ -394,7 +419,13 @@ float get_speed(int motor_id) {
 }
 
 String pid_logging() {
-  return String(tcurr) + ",   " + String(e1) + "," + String(I1) + "," + String(d1) + ",  " + String(e2) + "," + String(I2) + "," + String(d2);
+  return String(tcurr) + ",   " + String(e1) + "," + String(I1) + "," + String(d1) + ",  " + String(e2) + "," + String(I2) + "," + String(d2) + ",   " + String(res1) + "," + String(res2);
+}
+
+String vel_pid_logging() {
+  return String(tcurr) + ",   " + String(vel_ex) + "," + String(IVx) + "," + String(vel_dx) + ",    " + 
+                                  String(vel_ey) + "," + String(IVy) + "," + String(vel_dy) + ",    " + 
+                                  String(y_tilt_target) + "," + String(x_tilt_target);
 }
 
 float clamp(float x, float lim) {
