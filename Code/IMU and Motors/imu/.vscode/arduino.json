@@ -1,0 +1,6 @@
+{
+    "port": "COM4",
+    "configuration": "FlashFreq=80,UploadSpeed=921600,DebugLevel=none,PartitionScheme=default",
+    "board": "esp32:esp32:featheresp32",
+    "sketch": "imu.ino"
+}
