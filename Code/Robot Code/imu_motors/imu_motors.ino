@@ -21,6 +21,8 @@ const float BUMP_VOLTAGE = 0.03;
 
 const float DEG2RAD = 3.1415 / 180;
 
+const float SHUTOFF_ROTVEL = 150;
+const float SHUTOFF_ANG = 15;
 
 // Run Mode:
 enum Mode{RUN, STOP};
@@ -225,6 +227,20 @@ void loop() {
 
       // Serial.println(String(get_speed(0)) + ", " + String(get_speed(1)) + "," + String(get_speed(2)));
       // Serial.println(pid_logging());
+
+      if ((abs(get_speed(0)) > 1) || (abs(get_speed(1)) > 1) || (abs(get_speed(2)) > 1)) {
+        if (abs(d1) > SHUTOFF_ROTVEL || abs(d2) > SHUTOFF_ROTVEL) {
+          mode = STOP;
+          loop_count = 1;
+          Serial.println("Emergency Stopping. Rotational Velocity Limit Exceeded.");
+        }
+
+        if ((abs(e1) > SHUTOFF_ANG || abs(e2) > SHUTOFF_ANG)) {
+          mode = STOP;
+          loop_count = 1;
+          Serial.println("Emergency Stopping. Angle Limit Exceeded.");
+        }
+      }
     }
 
     // Velocity PID runs at 1/10 speed of the other.
@@ -248,7 +264,7 @@ void loop() {
       last_vel_y = vel_y_est;
       last_vel_time = tcurr;
 
-      Serial.println(vel_pid_logging());
+      // Serial.println(vel_pid_logging());
     }
 
 
@@ -262,6 +278,14 @@ void loop() {
     // Serial.println("Error did not recognize MODE");
   }
 
+  Serial.print("Angles: ");
+  Serial.print(mpu.getEulerY());
+  Serial.print(", ");
+  Serial.print(-mpu.getEulerX());
+  Serial.print(". Offsets: ");
+  Serial.print(x_tilt_target);
+  Serial.print(", ");
+  Serial.println(y_tilt_target);
 
   // BLUETOOTH
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
@@ -275,7 +299,7 @@ void loop() {
     if (outputPacket != "") {
       SerialBT.flush();
       SerialBT.println(outputPacket);
-      // Serial.println(outputPacket);
+      Serial.println(outputPacket);
     }
     //Recieving to BT in
     if (SerialBT.available()) {
