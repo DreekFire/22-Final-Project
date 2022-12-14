@@ -30,9 +30,9 @@ String inputPacket = "";
 String outputPacket = "";
 
 // PID constants and stats
-static float Kp1 = 0.0;
-static float Kd1 = 0.0;
-static float Ki1 = 0;
+static float Kp1 = 0.0; // 0.11
+static float Kd1 = 0.0; // 0.0005
+static float Ki1 = 0;   // 0
 static float I1 = 0;
 static float offset1 = 0;
 
