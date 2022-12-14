@@ -37,14 +37,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.graphWidget.setBackground('w')
 
-        redPen = pg.mkPen(color=(255, 0, 0))
-        greenPen = pg.mkPen(color=(0, 255 , 0))
-        bluePen = pg.mkPen(color=(0, 0, 255))
-        orangePen = pg.mkPen(color=(255,163,0))
+        redPen = pg.mkPen(color=(255, 0, 0), width=2)
+        greenPen = pg.mkPen(color=(0, 255 , 0) , width=2)
+        bluePen = pg.mkPen(color=(0, 0, 255), width=2)
+        orangePen = pg.mkPen(color=(255,163,0), width=2)
         self.data_line1 =  self.graphWidget.plot(self.t, self.error, pen=redPen)
         self.data_line2 =  self.graphWidget.plot(self.t, self.integral, pen=greenPen)
         self.data_line3 =  self.graphWidget.plot(self.t, self.derivitive, pen=bluePen)
-        self.data_line4 =  self.graphWidget.plot(self.t, self.integral, pen=orangePen)
+        self.data_line4 =  self.graphWidget.plot(self.t, self.u1, pen=orangePen)
         
 
 
@@ -86,10 +86,16 @@ root = ThemedTk(theme='yaru')
 root.title("Robot Control")
 root.geometry("400x700+0+0")
 s = ttk.Style()
-s.configure('.', font=('Helvetica', 12))
+s.configure('.', font=('Helvetica', 16))
 app = QtWidgets.QApplication(sys.argv)
-w = MainWindow()
-w.show()
+imuGraph = MainWindow()
+imuGraph.setWindowTitle("IMU Graph")
+
+imuGraph.show()
+
+velGraph = MainWindow()
+velGraph.setWindowTitle("Velocity Graph")
+velGraph.show()
 
 
 
@@ -249,8 +255,11 @@ while 1:
         # print(outdata)
         outArray = outdata.split(',')
         print(outArray)
+        imuArray = outArray[0:9]
+        velArray = outArray[9:17]
         if len(outArray) > 1:
-            w.update_plot_data(outArray, printFlag)
+            imuGraph.update_plot_data(imuArray, printFlag)
+            velGraph.update_plot_data(velArray, printFlag)
     root.update()
 # First 10 are x hat, next 9 are sensor reading gyro, speed, roll pitch yaw.
 
