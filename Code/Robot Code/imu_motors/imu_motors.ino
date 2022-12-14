@@ -33,9 +33,9 @@ String inputPacket = "";
 String outputPacket = "";
 
 // PID constants and stats
-static float Kp = 0.0; // 0.11
-static float Ki = 0;   // 0
-static float Kd = 0.0; // 0.0005
+static float Kp = 0.0; // New: 0.1      Old: 0.09
+static float Ki = 0;   // New: 0.000005 Old: 0.00001
+static float Kd = 0.0; // New: 0.0002   Old: 0.0003
 
 static float I1 = 0;
 static float I2 = 0;
@@ -43,7 +43,9 @@ static float I2 = 0;
 static float x_tilt_target = 0;
 static float y_tilt_target = 0;
 
-static float TORQUE_LIMIT = 0.8;
+static float TORQUE_LIMIT = 1.5;
+
+static float exp_decay = 0.97;
 
 float e1 = 0, e2 = 0, eZ = 0, d1 = 0, d2 = 0, dZ = 0, res1 = 0, res2 = 0, resZ = 0;
 
@@ -67,7 +69,7 @@ static float x_vel_target = 0;
 static float y_vel_target = 0;
 const float MAX_TARGET_VEL = 0.3;
 
-static int loop_count = 0;
+static int loop_count = 1;
 
 const float MAX_TILT_SETPOINT = 5;
 
@@ -78,9 +80,6 @@ float vel_ex = 0, vel_ey = 0, vel_dx = 0, vel_dy = 0;
 // static int loops = 0;
 static long tprev = 0;
 static long tcurr = 0;
-
-
-static float exp_decay = 0.99;
 
 // Incrimental int to ensure that printing only happens every 256th loop
 int BTCount = 0;
@@ -229,14 +228,16 @@ void loop() {
     }
 
     // Velocity PID runs at 1/10 speed of the other.
+    // Serial.println(loop_count);
     if (loop_count >= 10) {
       loop_count = 0;
+      // Serial.println("In vel control");
 
       vel_ex = vel_x_est - x_vel_target;
       vel_ey = vel_y_est - y_vel_target;
 
-      vel_dx = (vel_x_est - last_vel_x) / (tcurr - last_vel_time);
-      vel_dy = (vel_y_est - last_vel_y) / (tcurr - last_vel_time);
+      vel_dx = (vel_x_est - last_vel_x) / (tcurr - last_vel_time) * 1000;
+      vel_dy = (vel_y_est - last_vel_y) / (tcurr - last_vel_time) * 1000;
 
       x_tilt_target = -clamp(KpV * vel_ey + KiV * IVy + KdV * vel_dy, MAX_TILT_SETPOINT); // Negative because of how the x and y axes are related in tilt / direction. Positive y velocity is REDUCED by Negative angle
       y_tilt_target =  clamp(KpV * vel_ex + KiV * IVx + KdV * vel_dx, MAX_TILT_SETPOINT);
@@ -264,12 +265,12 @@ void loop() {
 
   // BLUETOOTH
   // Checking if it is time to print, if not we let BT have the serial for recieving commands
-
-  // if (BTCount >= 4){
-  // BTCount = 0;
-  if (loop_count == 0) {
+  // Serial.println(BTCount);
+  if (BTCount >= 4){
+  BTCount = 0;
+  // if (loop_count == 0) {
     // Send routine output packet
-    outputPacket = vel_pid_logging();
+    outputPacket = pid_logging() + "," + vel_pid_logging();
         //Writing to BT out
     if (outputPacket != "") {
       SerialBT.flush();
@@ -322,12 +323,14 @@ void loop() {
         // Reset integrals to zero
         I1 = 0;
         I2 = 0;
+        loop_count = 1;
 
         Serial.println("Recieved START");
 
       } else if (ID == "STOP") {
         mode = STOP;
         Serial.println("Recieved STOP");
+        loop_count = 1;
 
       } else if (ID = "VEL") {
         KpV = atof(strtok(NULL, ","));
