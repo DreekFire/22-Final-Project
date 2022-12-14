@@ -141,8 +141,8 @@ def save_yaw():
     KpInputYaw = Kp_textboxYaw.get()
     KIInputYaw = KI_textboxYaw.get()
     KDInputYaw = KD_textboxYaw.get()
-    print(f"PID Inputs saved: {KpInputYaw}, {KIInputYaw}, {KDInputYaw}")
-    outStringYaw = "YAW," + KpInputYaw + "," + KIInputYaw + "," + KDInputYaw + "|"
+    print(f"VEL Inputs saved: {KpInputYaw}, {KIInputYaw}, {KDInputYaw}")
+    outStringYaw = "VEL," + KpInputYaw + "," + KIInputYaw + "," + KDInputYaw + "|"
     serialPort.write(bytes(outStringYaw,'utf-8'))
     time.sleep(0.3)
 
@@ -165,8 +165,8 @@ def sendStart():
     outString = "PID," + "0" + "," + "0" + "," + "0" + "|"
     serialPort.write(bytes(outString,'utf-8'))
     time.sleep(0.3)
-    print("Sending 0 YAW")
-    outString = "YAW," + "0" + "," + "0" + "," + "0" + "|"
+    print("Sending 0 VEL")
+    outString = "VEL," + "0" + "," + "0" + "," + "0" + "|"
     serialPort.write(bytes(outString,'utf-8'))
     time.sleep(0.3)
     print("Sending Start")
@@ -202,7 +202,7 @@ button = ttk.Button(root, text="Update PID", command=save_inputs)
 button.pack(pady=5)
 
 
-YawPIDLabel = ttk.Label(text="YAW PID Values")
+YawPIDLabel = ttk.Label(text="Velocity PID Values")
 YawPIDLabel.pack(pady=5)
 Kp_textboxYaw = ttk.Entry(root)
 Kp_textboxYaw.pack(pady=5)
@@ -213,7 +213,7 @@ KI_textboxYaw.pack(pady=5)
 KD_textboxYaw = ttk.Entry(root)
 KD_textboxYaw.pack(pady=5)
 
-buttonYaw = ttk.Button(root, text="Update Yaw", command=save_yaw)
+buttonYaw = ttk.Button(root, text="Update Velocity", command=save_yaw)
 buttonYaw.pack(pady=5)
 
 
