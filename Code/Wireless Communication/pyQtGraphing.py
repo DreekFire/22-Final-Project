@@ -195,13 +195,22 @@ def sendStop():
 largerText = font.Font(size=20)
 PIDLabel = ttk.Label(text="PID Values")
 PIDLabel.pack(pady=5)
-Kp_textbox = ttk.Entry(root)
+
+kpDefault = StringVar()
+kpDefault.set("0.1")
+
+Kp_textbox = ttk.Entry(root, textvariable=kpDefault)
 Kp_textbox.pack(pady=5)
 
-KI_textbox = ttk.Entry(root)
+kIDefault = StringVar()
+kIDefault.set("0.000005")
+KI_textbox = ttk.Entry(root, textvariable=kIDefault)
 KI_textbox.pack(pady=5)
 
-KD_textbox = ttk.Entry(root)
+
+kDDefault = StringVar()
+kDDefault.set("0.00012")
+KD_textbox = ttk.Entry(root, textvariable=kDDefault)
 KD_textbox.pack(pady=5)
 
 button = ttk.Button(root, text="Update PID", command=save_inputs)
