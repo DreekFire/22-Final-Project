@@ -197,19 +197,19 @@ PIDLabel = ttk.Label(text="PID Values")
 PIDLabel.pack(pady=5)
 
 kpDefault = StringVar()
-kpDefault.set("0.1")
+kpDefault.set("0.095")
 
 Kp_textbox = ttk.Entry(root, textvariable=kpDefault)
 Kp_textbox.pack(pady=5)
 
 kIDefault = StringVar()
-kIDefault.set("0.000005")
+kIDefault.set("0.00000485")
 KI_textbox = ttk.Entry(root, textvariable=kIDefault)
 KI_textbox.pack(pady=5)
 
 
 kDDefault = StringVar()
-kDDefault.set("0.00012")
+kDDefault.set("0.0001")
 KD_textbox = ttk.Entry(root, textvariable=kDDefault)
 KD_textbox.pack(pady=5)
 
@@ -219,13 +219,21 @@ button.pack(pady=5)
 
 YawPIDLabel = ttk.Label(text="Velocity PID Values")
 YawPIDLabel.pack(pady=5)
-Kp_textboxYaw = ttk.Entry(root)
+
+kpVDefault = StringVar()
+kpVDefault.set("4.5")
+Kp_textboxYaw = ttk.Entry(root, textvariable=kpVDefault)
 Kp_textboxYaw.pack(pady=5)
 
-KI_textboxYaw = ttk.Entry(root)
+kIVDefault = StringVar()
+kIVDefault.set("0")
+KI_textboxYaw = ttk.Entry(root, textvariable=kIVDefault)
 KI_textboxYaw.pack(pady=5)
 
-KD_textboxYaw = ttk.Entry(root)
+
+kDVDefault = StringVar()
+kDVDefault.set("0.5")
+KD_textboxYaw = ttk.Entry(root, textvariable=kDVDefault)
 KD_textboxYaw.pack(pady=5)
 
 buttonYaw = ttk.Button(root, text="Update Velocity", command=save_yaw)
